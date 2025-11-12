@@ -30,7 +30,7 @@ app.use(generalLimiter);
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/studio', studioRoutes);
-app.use('api/booking',bookingRoutes)
+app.use('/api/booking',bookingRoutes)
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ 

@@ -1,9 +1,9 @@
-import Booking from '../models/Booking.js';
-import Studio from '../models/Studio.js';
-import User from '../models/User.js';
-import notificationService from '../services/notificationService.js';
+import Booking from "../models/Booking.js";
+import Studio from "../models/Studio.js";
+import User from "../models/User.js";
+import notificationService from "../services/notificationService.js";
 
-import { format, addDays, startOfDay, endOfDay } from 'date-fns';
+import { format, addDays, startOfDay, endOfDay } from "date-fns";
 
 // @desc    Create new booking
 // @route   POST /api/booking
@@ -47,10 +47,31 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    // Calculate pricing
-    const baseAmount = studio.pricing.basePrice;
+    // ✅ Calculate pricing based on duration
+    const startHour = parseInt(startTime.split(':')[0]);
+    const endHour = parseInt(endTime.split(':')[0]);
+    const durationInHours = endHour - startHour;
+
+    // Studio-specific pricing
+    const STUDIO_PRICING = {
+      'Studio A - Resonance Sinhgad Road': 600,
+      'Studio B - Resonance Sinhgad Road': 800,
+      'Studio C - Resonance Sinhgad Road': 1000
+    };
+
+    const pricePerHour = STUDIO_PRICING[studio.name] || studio.pricing?.basePrice || 600;
+    const baseAmount = pricePerHour * durationInHours;
     const taxes = Math.round(baseAmount * 0.18); // 18% GST
     const totalAmount = baseAmount + taxes;
+
+    console.log(`💰 Booking Pricing:
+      Studio: ${studio.name}
+      Duration: ${durationInHours} hours (${startTime} - ${endTime})
+      Rate: ₹${pricePerHour}/hour
+      Base Amount: ₹${baseAmount}
+      GST (18%): ₹${taxes}
+      Total: ₹${totalAmount}
+    `);
 
     // Convert to 12-hour format
     const to12Hour = (time24) => {
@@ -88,13 +109,12 @@ export const createBooking = async (req, res) => {
       { path: 'studio', select: 'name size' }
     ]);
 
-    // 🔥 NEW: Send notifications (WhatsApp + Google)
+    // Send notifications (WhatsApp + Google)
     try {
       await notificationService.handleNewBooking(booking);
       console.log('✅ Notifications sent successfully');
     } catch (notifError) {
       console.error('⚠️  Notification error (booking still created):', notifError);
-      // Don't fail the booking if notifications fail
     }
 
     res.status(201).json({
@@ -124,23 +144,23 @@ export const getMyBookings = async (req, res) => {
       query.status = status;
     }
 
-    if (upcoming === 'true') {
+    if (upcoming === "true") {
       query.date = { $gte: new Date() };
     }
 
     const bookings = await Booking.find(query)
-      .populate('studio', 'name size')
-      .sort({ date: -1, 'timeSlot.startTime': 1 });
+      .populate("studio", "name size")
+      .sort({ date: -1, "timeSlot.startTime": 1 });
 
     res.status(200).json({
       success: true,
       count: bookings.length,
-      bookings
+      bookings,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -151,39 +171,42 @@ export const getMyBookings = async (req, res) => {
 export const getBookingById = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id)
-      .populate('user', 'name phone email')
-      .populate('studio');
+      .populate("user", "name phone email")
+      .populate("studio");
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found'
+        message: "Booking not found",
       });
     }
 
     // Check if user owns this booking or is admin
-    if (booking.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (
+      booking.user._id.toString() !== req.user._id.toString() &&
+      req.user.role !== "admin"
+    ) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to view this booking'
+        message: "Not authorized to view this booking",
       });
     }
 
     res.status(200).json({
       success: true,
-      booking
+      booking,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
 
 // @desc    Get timetable for multiple dates
 // @route   GET /api/booking/timetable
-// @access  Public
+// @access  Public (but shows ownership if authenticated)
 export const getTimetable = async (req, res) => {
   try {
     const { startDate, endDate, studioId } = req.query;
@@ -209,7 +232,7 @@ export const getTimetable = async (req, res) => {
 
     const bookings = await Booking.find(query)
       .populate('studio', 'name')
-      .populate('user', 'name')
+      .populate('user', '_id name') // ✅ Populate user with ID
       .select('studio date timeSlot status user');
 
     // Get all studios
@@ -221,6 +244,14 @@ export const getTimetable = async (req, res) => {
       timeSlots.push(`${hour.toString().padStart(2, '0')}:00`);
     }
 
+    // ✅ Get current user ID if authenticated
+    const currentUserId = req.user?._id?.toString();
+    
+    // Debug log
+    console.log('\n📊 TIMETABLE DEBUG:');
+    console.log('Current User ID:', currentUserId || 'Not logged in');
+    console.log('Total Bookings:', bookings.length);
+
     // Format response
     const timetable = {
       startDate,
@@ -231,18 +262,29 @@ export const getTimetable = async (req, res) => {
         size: s.size
       })),
       timeSlots,
-      bookings: bookings.map(b => ({
-        id: b._id,
-        studioId: b.studio._id,
-        studioName: b.studio.name,
-        date: format(new Date(b.date), 'yyyy-MM-dd'),
-        startTime: b.timeSlot.startTime,
-        endTime: b.timeSlot.endTime,
-        startTime12h: b.timeSlot.startTime12h,
-        endTime12h: b.timeSlot.endTime12h,
-        status: b.status,
-        isOwn: req.user ? b.user._id.toString() === req.user._id.toString() : false
-      }))
+      bookings: bookings.map(b => {
+        const bookingUserId = b.user?._id?.toString();
+        const isOwn = currentUserId && bookingUserId && currentUserId === bookingUserId;
+        
+        // Debug each booking
+        console.log(`  Booking: ${b._id}`);
+        console.log(`    User ID: ${bookingUserId}`);
+        console.log(`    Current User: ${currentUserId}`);
+        console.log(`    isOwn: ${isOwn}`);
+        
+        return {
+          id: b._id,
+          studioId: b.studio._id,
+          studioName: b.studio.name,
+          date: format(new Date(b.date), 'yyyy-MM-dd'),
+          startTime: b.timeSlot.startTime,
+          endTime: b.timeSlot.endTime,
+          startTime12h: b.timeSlot.startTime12h,
+          endTime12h: b.timeSlot.endTime12h,
+          status: b.status,
+          isOwn: isOwn
+        };
+      })
     };
 
     res.status(200).json({
@@ -250,6 +292,7 @@ export const getTimetable = async (req, res) => {
       timetable
     });
   } catch (error) {
+    console.error('Timetable error:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -269,21 +312,21 @@ export const checkAvailability = async (req, res) => {
       studio: studioId,
       date: {
         $gte: startOfDay(bookingDate),
-        $lte: endOfDay(bookingDate)
+        $lte: endOfDay(bookingDate),
       },
-      'timeSlot.startTime': startTime,
-      status: { $ne: 'cancelled' }
+      "timeSlot.startTime": startTime,
+      status: { $ne: "cancelled" },
     });
 
     res.status(200).json({
       success: true,
       available: !existingBooking,
-      message: existingBooking ? 'Slot is already booked' : 'Slot is available'
+      message: existingBooking ? "Slot is already booked" : "Slot is available",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -293,35 +336,40 @@ export const checkAvailability = async (req, res) => {
 // @access  Private
 export const cancelBooking = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id).populate('studio user');
+    const booking = await Booking.findById(req.params.id).populate(
+      "studio user"
+    );
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found'
+        message: "Booking not found",
       });
     }
 
     // Check ownership
-    if (booking.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (
+      booking.user._id.toString() !== req.user._id.toString() &&
+      req.user.role !== "admin"
+    ) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to cancel this booking'
+        message: "Not authorized to cancel this booking",
       });
     }
 
     // Check if already cancelled
-    if (booking.status === 'cancelled') {
+    if (booking.status === "cancelled") {
       return res.status(400).json({
         success: false,
-        message: 'Booking is already cancelled'
+        message: "Booking is already cancelled",
       });
     }
 
     // Calculate time until booking
     const now = new Date();
     const bookingDateTime = new Date(booking.date);
-    const [hours, minutes] = booking.timeSlot.startTime.split(':');
+    const [hours, minutes] = booking.timeSlot.startTime.split(":");
     bookingDateTime.setHours(parseInt(hours), parseInt(minutes), 0);
 
     const hoursUntilBooking = (bookingDateTime - now) / (1000 * 60 * 60);
@@ -333,11 +381,11 @@ export const cancelBooking = async (req, res) => {
     }
 
     // Update booking
-    booking.status = 'cancelled';
+    booking.status = "cancelled";
     booking.cancellation = {
-      reason: req.body.reason || 'User cancelled',
+      reason: req.body.reason || "User cancelled",
       cancelledAt: new Date(),
-      penaltyAmount
+      penaltyAmount,
     };
 
     await booking.save();
@@ -345,22 +393,23 @@ export const cancelBooking = async (req, res) => {
     // 🔥 NEW: Send cancellation notifications
     try {
       await notificationService.handleCancellation(booking);
-      console.log('✅ Cancellation notifications sent');
+      console.log("✅ Cancellation notifications sent");
     } catch (notifError) {
-      console.error('⚠️  Notification error:', notifError);
+      console.error("⚠️  Notification error:", notifError);
     }
 
     res.status(200).json({
       success: true,
       booking,
-      message: penaltyAmount > 0 
-        ? `Booking cancelled. Penalty: ₹${penaltyAmount} (payable at next booking)`
-        : 'Booking cancelled successfully'
+      message:
+        penaltyAmount > 0
+          ? `Booking cancelled. Penalty: ₹${penaltyAmount} (payable at next booking)`
+          : "Booking cancelled successfully",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -372,20 +421,25 @@ export const rescheduleBooking = async (req, res) => {
   try {
     const { newDate, newStartTime, newEndTime } = req.body;
 
-    const booking = await Booking.findById(req.params.id).populate('studio user');
+    const booking = await Booking.findById(req.params.id).populate(
+      "studio user"
+    );
 
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found'
+        message: "Booking not found",
       });
     }
 
     // Check ownership
-    if (booking.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (
+      booking.user._id.toString() !== req.user._id.toString() &&
+      req.user.role !== "admin"
+    ) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to reschedule this booking'
+        message: "Not authorized to reschedule this booking",
       });
     }
 
@@ -396,24 +450,24 @@ export const rescheduleBooking = async (req, res) => {
       studio: booking.studio._id,
       date: {
         $gte: startOfDay(bookingDate),
-        $lte: endOfDay(bookingDate)
+        $lte: endOfDay(bookingDate),
       },
-      'timeSlot.startTime': newStartTime,
-      status: { $ne: 'cancelled' }
+      "timeSlot.startTime": newStartTime,
+      status: { $ne: "cancelled" },
     });
 
     if (existingBooking) {
       return res.status(400).json({
         success: false,
-        message: 'New time slot is already booked'
+        message: "New time slot is already booked",
       });
     }
 
     // Convert to 12-hour format
     const to12Hour = (time24) => {
-      const [hours, minutes] = time24.split(':');
+      const [hours, minutes] = time24.split(":");
       const hour = parseInt(hours);
-      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const ampm = hour >= 12 ? "PM" : "AM";
       const hour12 = hour % 12 || 12;
       return `${hour12}:${minutes} ${ampm}`;
     };
@@ -424,7 +478,7 @@ export const rescheduleBooking = async (req, res) => {
       startTime: newStartTime,
       endTime: newEndTime,
       startTime12h: to12Hour(newStartTime),
-      endTime12h: to12Hour(newEndTime)
+      endTime12h: to12Hour(newEndTime),
     };
 
     await booking.save();
@@ -432,12 +486,12 @@ export const rescheduleBooking = async (req, res) => {
     res.status(200).json({
       success: true,
       booking,
-      message: 'Booking rescheduled successfully'
+      message: "Booking rescheduled successfully",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -454,17 +508,17 @@ export const updateBookingStatus = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found'
+        message: "Booking not found",
       });
     }
 
     booking.status = status;
 
-    if (status === 'no-show') {
+    if (status === "no-show") {
       booking.cancellation = {
-        reason: 'No-show',
+        reason: "No-show",
         cancelledAt: new Date(),
-        penaltyAmount: 200
+        penaltyAmount: 200,
       };
     }
 
@@ -473,12 +527,12 @@ export const updateBookingStatus = async (req, res) => {
     res.status(200).json({
       success: true,
       booking,
-      message: 'Booking status updated'
+      message: "Booking status updated",
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -488,7 +542,14 @@ export const updateBookingStatus = async (req, res) => {
 // @access  Private/Admin
 export const getAllBookings = async (req, res) => {
   try {
-    const { status, studioId, startDate, endDate, page = 1, limit = 50 } = req.query;
+    const {
+      status,
+      studioId,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 50,
+    } = req.query;
 
     const query = {};
 
@@ -501,9 +562,9 @@ export const getAllBookings = async (req, res) => {
     }
 
     const bookings = await Booking.find(query)
-      .populate('user', 'name phone')
-      .populate('studio', 'name')
-      .sort({ date: -1, 'timeSlot.startTime': 1 })
+      .populate("user", "name phone")
+      .populate("studio", "name")
+      .sort({ date: -1, "timeSlot.startTime": 1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
@@ -514,12 +575,12 @@ export const getAllBookings = async (req, res) => {
       count,
       totalPages: Math.ceil(count / limit),
       currentPage: parseInt(page),
-      bookings
+      bookings,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };

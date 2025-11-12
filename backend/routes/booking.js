@@ -11,6 +11,7 @@ import {
   getAllBookings
 } from '../controllers/bookingController.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { optionalAuth } from '../middleware/optionalAuth.js'; // ✅ ADD THIS
 import { bookingLimiter } from '../middleware/rateLimiting.js';
 import {
   validateCreateBooking,
@@ -23,8 +24,8 @@ import {
 
 const router = express.Router();
 
-// Public routes
-router.get('/timetable', validateTimetable, getTimetable);
+// ✅ Public routes (with optional auth for ownership detection)
+router.get('/timetable', optionalAuth, validateTimetable, getTimetable);
 router.post('/check-availability', validateCheckAvailability, checkAvailability);
 
 // Protected routes (require authentication)

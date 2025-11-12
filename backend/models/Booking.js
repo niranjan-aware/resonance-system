@@ -4,7 +4,8 @@ const bookingSchema = new mongoose.Schema({
   bookingId: {
     type: String,
     unique: true,
-    required: true
+    index: true
+    // ✅ NO required: true - we auto-generate it
   },
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -114,20 +115,36 @@ const bookingSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate booking ID before save
-bookingSchema.pre('save', function(next) {
-  if (this.isNew && !this.bookingId) {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substr(2, 4).toUpperCase();
-    this.bookingId = `RES-${timestamp}-${random}`;
+// Indexes for efficient queries
+bookingSchema.index({ user: 1, date: -1 });
+bookingSchema.index({ studio: 1, date: 1 });
+bookingSchema.index({ date: 1, status: 1 });
+bookingSchema.index({ bookingId: 1 });
+
+// ✅ Auto-generate bookingId before saving
+bookingSchema.pre('save', async function(next) {
+  if (!this.bookingId) {
+    // Generate format: RES-YYYYMMDD-XXXX
+    const now = new Date();
+    const dateStr = now.getFullYear().toString() + 
+                    (now.getMonth() + 1).toString().padStart(2, '0') + 
+                    now.getDate().toString().padStart(2, '0');
+    
+    // Get count of bookings created today
+    const startOfToday = new Date(now.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(now.setHours(23, 59, 59, 999));
+    
+    const count = await this.constructor.countDocuments({
+      createdAt: {
+        $gte: startOfToday,
+        $lte: endOfToday
+      }
+    });
+    
+    const sequence = (count + 1).toString().padStart(4, '0');
+    this.bookingId = `RES-${dateStr}-${sequence}`;
   }
   next();
 });
-
-// Indexes
-bookingSchema.index({ user: 1, date: -1 });
-bookingSchema.index({ studio: 1, date: 1, 'timeSlot.startTime': 1 });
-bookingSchema.index({ bookingId: 1 });
-bookingSchema.index({ status: 1, date: 1 });
 
 export default mongoose.model('Booking', bookingSchema);

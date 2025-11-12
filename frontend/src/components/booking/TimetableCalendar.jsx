@@ -44,6 +44,10 @@ const TimetableCalendar = ({ onSlotSelect, selectedStudio }) => {
 
       const response = await api.get('/booking/timetable', { params });
       setTimetableData(response.data.timetable);
+      
+      // Debug log
+      console.log('📅 Timetable loaded:', response.data.timetable);
+      console.log('📋 Bookings:', response.data.timetable.bookings);
     } catch (error) {
       console.error('Error fetching timetable:', error);
     } finally {
@@ -60,28 +64,27 @@ const TimetableCalendar = ({ onSlotSelect, selectedStudio }) => {
     setCurrentDate(prev => addDays(prev, 3));
   };
 
-  // Check if slot is booked
-  const isSlotBooked = (studioId, date, time) => {
-    if (!timetableData?.bookings) return false;
-    
-    return timetableData.bookings.some(
-      booking =>
-        booking.studioId === studioId &&
-        booking.date === format(date, 'yyyy-MM-dd') &&
-        booking.startTime === time
-    );
-  };
-
-  // Get booking for slot
+  // ✅ FIXED - Get booking that covers this time slot
   const getSlotBooking = (studioId, date, time) => {
     if (!timetableData?.bookings) return null;
     
-    return timetableData.bookings.find(
-      booking =>
-        booking.studioId === studioId &&
-        booking.date === format(date, 'yyyy-MM-dd') &&
-        booking.startTime === time
-    );
+    const currentHour = parseInt(time.split(':')[0]);
+    const dateStr = format(date, 'yyyy-MM-dd');
+    
+    // Find booking that covers this hour
+    const booking = timetableData.bookings.find(b => {
+      if (b.studioId !== studioId || b.date !== dateStr) {
+        return false;
+      }
+      
+      const startHour = parseInt(b.startTime.split(':')[0]);
+      const endHour = parseInt(b.endTime.split(':')[0]);
+      
+      // Check if current hour is within booking range
+      return currentHour >= startHour && currentHour < endHour;
+    });
+    
+    return booking;
   };
 
   // Handle slot click
@@ -104,17 +107,24 @@ const TimetableCalendar = ({ onSlotSelect, selectedStudio }) => {
     onSlotSelect(slot);
   };
 
-  // Get slot color
+  // ✅ FIXED - Get slot color based on booking ownership
   const getSlotColor = (studio, date, time) => {
     const booking = getSlotBooking(studio.id, date, time);
     
     if (booking) {
+      // Debug log
+      if (booking.isOwn) {
+        console.log(`🔵 Blue slot: ${studio.name} at ${time} (isOwn: true)`);
+      } else {
+        console.log(`⚫ Gray slot: ${studio.name} at ${time} (isOwn: false)`);
+      }
+      
       return booking.isOwn
-        ? 'bg-primary-500 hover:bg-primary-600 text-white cursor-pointer' // User's booking - Blue
-        : 'bg-secondary-400 text-white cursor-not-allowed'; // Others' booking - Brown/Gray
+        ? 'bg-blue-500 hover:bg-blue-600 text-white cursor-pointer' // YOUR booking - BLUE
+        : 'bg-gray-400 text-white cursor-not-allowed'; // Others' booking - GRAY
     }
     
-    return 'bg-success-500 hover:bg-success-600 text-white cursor-pointer'; // Available - Green
+    return 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'; // Available - GREEN
   };
 
   if (loading) {
@@ -148,15 +158,15 @@ const TimetableCalendar = ({ onSlotSelect, selectedStudio }) => {
       {/* Legend */}
       <div className="flex flex-wrap gap-4 mb-6 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-success-500 rounded"></div>
+          <div className="w-4 h-4 bg-green-500 rounded"></div>
           <span>Available</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-primary-500 rounded"></div>
+          <div className="w-4 h-4 bg-blue-500 rounded"></div>
           <span>Your Booking</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-secondary-400 rounded"></div>
+          <div className="w-4 h-4 bg-gray-400 rounded"></div>
           <span>Booked by Others</span>
         </div>
       </div>
