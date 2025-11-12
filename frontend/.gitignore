@@ -1,0 +1,24 @@
+### **frontend/.gitignore**
+```
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Testing
+coverage
+
+# Production
+dist
+build
+
+# Misc
+.DS_Store
+.env
+.env.local
+.env.production
+*.log
+
+# Editor
+.vscode
+.idea
