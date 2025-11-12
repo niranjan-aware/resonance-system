@@ -5,13 +5,14 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import connectDB from './config/database.js';
 import { generalLimiter } from './middleware/rateLimiting.js';
-
+import path from "path";
 // Import routes
 import authRoutes from './routes/auth.js';
 import studioRoutes from './routes/studio.js';
 import bookingRoutes from './routes/booking.js'
 
 const app = express();
+const __dirname = path.resolve();
 
 // Connect to database
 connectDB();
@@ -49,6 +50,15 @@ app.use((error, req, res, next) => {
       : error.message 
   });
 });
+
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+  });
+}
 
 const PORT = process.env.PORT || 5000;
 
