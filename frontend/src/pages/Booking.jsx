@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
-import { format, addDays, startOfDay, isBefore, isAfter } from "date-fns";
+import { format, addDays } from "date-fns";
 import toast from "react-hot-toast";
 import {
   Calendar,
@@ -23,54 +23,19 @@ import { useAuthStore } from "../store/useAuthStore";
 import api from "../services/api";
 
 const sessionTypes = [
-  {
-    value: "karaoke",
-    label: "Karaoke",
-    icon: "🎤",
-    groups: ["1-5", "6-10", "11-15"],
-  },
-  {
-    value: "live-musicians",
-    label: "Live Musicians",
-    icon: "🎸",
-    groups: ["1-3", "4-6", "7-10"],
-  },
-  {
-    value: "band",
-    label: "Band Rehearsal",
-    icon: "🥁",
-    groups: ["2-5", "6-8"],
-  },
-  {
-    value: "audio-recording",
-    label: "Audio Recording",
-    icon: "🎙️",
-    groups: ["1-2", "3-5"],
-  },
-  {
-    value: "video-recording",
-    label: "Video Recording",
-    icon: "🎥",
-    groups: ["1-5", "6-10"],
-  },
-  {
-    value: "fb-live",
-    label: "Live Streaming",
-    icon: "📹",
-    groups: ["1-5", "6-10"],
-  },
-  {
-    value: "show",
-    label: "Show/Event",
-    icon: "🎭",
-    groups: ["10-20", "21-50"],
-  },
+  { value: "karaoke", label: "Karaoke", icon: "🎤", groups: ["1-5", "6-10", "11-15"] },
+  { value: "live-musicians", label: "Live Musicians", icon: "🎸", groups: ["1-3", "4-6", "7-10"] },
+  { value: "band", label: "Band Rehearsal", icon: "🥁", groups: ["2-5", "6-8"] },
+  { value: "audio-recording", label: "Audio Recording", icon: "🎙️", groups: ["1-2", "3-5"] },
+  { value: "video-recording", label: "Video Recording", icon: "🎥", groups: ["1-5", "6-10"] },
+  { value: "fb-live", label: "Live Streaming", icon: "📹", groups: ["1-5", "6-10"] },
+  { value: "show", label: "Show/Event", icon: "🎭", groups: ["10-20", "21-50"] },
 ];
 
 const STUDIO_INFO = {
-  "Studio A": { size: "Small", price: 600 },
-  "Studio B": { size: "Medium", price: 800 },
-  "Studio C": { size: "Large", price: 1000 },
+  "Studio A - Resonance Sinhgad Road": { size: "Small", price: 600 },
+  "Studio B - Resonance Sinhgad Road": { size: "Medium", price: 800 },
+  "Studio C - Resonance Sinhgad Road": { size: "Large", price: 1000 },
 };
 
 export default function BookingNew() {
@@ -83,7 +48,6 @@ export default function BookingNew() {
 
   // Form state
   const [studios, setStudios] = useState([]);
-  const [selectedDate, setSelectedDate] = useState("");
   const [bookedSlots, setBookedSlots] = useState([]);
   const [availableStartTimes, setAvailableStartTimes] = useState([]);
   const [availableEndTimes, setAvailableEndTimes] = useState([]);
@@ -113,8 +77,7 @@ export default function BookingNew() {
   });
 
   const watchAll = watch();
-  const { sessionType, groupSize, studioId, date, startTime, endTime } =
-    watchAll;
+  const { sessionType, groupSize, studioId, date, startTime, endTime } = watchAll;
 
   // Generate 3 consecutive days for calendar
   const getCalendarDates = () => {
@@ -165,6 +128,19 @@ export default function BookingNew() {
     }
   };
 
+  // Sync calendar view with selected form date
+  useEffect(() => {
+    if (date) {
+      const selectedDate = new Date(date);
+      const calendarStart = calendarDate;
+      const calendarEnd = addDays(calendarDate, 2);
+      
+      if (selectedDate < calendarStart || selectedDate > calendarEnd) {
+        setCalendarDate(selectedDate);
+      }
+    }
+  }, [date]);
+
   // Navigate calendar
   const goToPrevious = () => {
     setCalendarDate((prev) => addDays(prev, -3));
@@ -174,56 +150,52 @@ export default function BookingNew() {
     setCalendarDate((prev) => addDays(prev, 3));
   };
 
-  // Check if slot is booked in calendar
-  const isCalendarSlotBooked = (studioId, date, time) => {
-    if (!timetableData?.bookings) return false;
-    return timetableData.bookings.some(
-      (booking) =>
-        booking.studioId === studioId &&
-        booking.date === format(date, "yyyy-MM-dd") &&
-        booking.startTime === time
-    );
+  // Handle calendar date click
+  const handleCalendarDateClick = (clickedDate) => {
+    const dateStr = format(clickedDate, 'yyyy-MM-dd');
+    setValue('date', dateStr);
+    
+    setTimeout(() => {
+      const formElement = document.querySelector('form');
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+    
+    toast.success(`Date selected: ${format(clickedDate, 'MMM dd, yyyy')}`);
   };
 
+  // Get calendar slot color
   const getCalendarSlotColor = (studioId, date, time) => {
     if (!timetableData?.bookings) return "bg-green-500 text-white";
 
     const currentHour = parseInt(time.split(":")[0]);
     const dateStr = format(date, "yyyy-MM-dd");
 
-    // Find any booking that covers this hour
     const booking = timetableData.bookings.find((b) => {
       if (b.studioId !== studioId || b.date !== dateStr) return false;
-
       const startHour = parseInt(b.startTime.split(":")[0]);
       const endHour = parseInt(b.endTime.split(":")[0]);
-
-      // Check if current hour is within booking range
       return currentHour >= startHour && currentHour < endHour;
     });
 
     if (booking) {
-      return booking.isOwn
-        ? "bg-blue-500 text-white" // Your booking - BLUE
-        : "bg-gray-400 text-white"; // Others' booking - GRAY
+      return booking.isOwn ? "bg-blue-500 text-white" : "bg-gray-400 text-white";
     }
 
-    return "bg-green-500 text-white"; // Available - GREEN
+    return "bg-green-500 text-white";
   };
 
-  // Studio recommendations based on session type & group size
+  // Studio recommendations
   useEffect(() => {
     if (sessionType && groupSize && studios.length > 0) {
-      const groupNum = parseInt(
-        groupSize.split("-")[1] || groupSize.split("-")[0]
-      );
+      const groupNum = parseInt(groupSize.split("-")[1] || groupSize.split("-")[0]);
 
       const suitable = studios
         .filter((studio) => studio.capacity >= groupNum)
         .map((studio) => ({
           ...studio,
-          price:
-            STUDIO_INFO[studio.name]?.price || studio.pricing?.basePrice || 0,
+          price: STUDIO_INFO[studio.name]?.price || studio.pricing?.basePrice || 0,
         }))
         .sort((a, b) => a.price - b.price);
 
@@ -235,7 +207,7 @@ export default function BookingNew() {
     }
   }, [sessionType, groupSize, studios, studioId, setValue]);
 
-  // When date is selected from form, fetch availability
+  // Fetch availability when date changes
   useEffect(() => {
     if (date && studioId) {
       fetchAvailability(studioId, date);
@@ -246,16 +218,10 @@ export default function BookingNew() {
     setCheckingAvailability(true);
     try {
       const response = await api.get("/booking/timetable", {
-        params: {
-          startDate: selectedDate,
-          endDate: selectedDate,
-          studioId: studio,
-        },
+        params: { startDate: selectedDate, endDate: selectedDate, studioId: studio },
       });
 
       const bookings = response.data.timetable?.bookings || [];
-
-      // Extract booked time ranges
       const booked = bookings.map((b) => ({
         start: parseInt(b.startTime.split(":")[0]),
         end: parseInt(b.endTime.split(":")[0]),
@@ -263,14 +229,9 @@ export default function BookingNew() {
 
       setBookedSlots(booked);
 
-      // Generate available start times (8 AM to 9 PM)
       const available = [];
       for (let hour = 8; hour < 22; hour++) {
-        // Check if this hour is NOT in any booked range
-        const isBooked = booked.some(
-          (slot) => hour >= slot.start && hour < slot.end
-        );
-
+        const isBooked = booked.some((slot) => hour >= slot.start && hour < slot.end);
         if (!isBooked) {
           available.push({
             value: `${hour.toString().padStart(2, "0")}:00`,
@@ -291,26 +252,20 @@ export default function BookingNew() {
     }
   };
 
-  // Generate end times based on selected start time
+  // Generate end times
   useEffect(() => {
     if (startTime && bookedSlots.length >= 0) {
       const startHour = parseInt(startTime.split(":")[0]);
       const endTimes = [];
 
-      // Find next booked slot after start time
-      let nextBookedHour = 22; // Default: until 10 PM
+      let nextBookedHour = 22;
       for (const booking of bookedSlots) {
         if (booking.start > startHour && booking.start < nextBookedHour) {
           nextBookedHour = booking.start;
         }
       }
 
-      // Generate end times up to next booked slot or 10 PM
-      for (
-        let hour = startHour + 1;
-        hour <= nextBookedHour && hour <= 22;
-        hour++
-      ) {
+      for (let hour = startHour + 1; hour <= nextBookedHour && hour <= 22; hour++) {
         endTimes.push({
           value: `${hour.toString().padStart(2, "0")}:00`,
           label: formatTime(hour),
@@ -332,7 +287,7 @@ export default function BookingNew() {
     return `${hour - 12}:00 PM`;
   };
 
-  // Calculate booking summary
+  // Calculate summary
   const calculateSummary = (data) => {
     const studio = studios.find((s) => s._id === data.studioId);
     if (!studio) return null;
@@ -354,8 +309,7 @@ export default function BookingNew() {
       startTime: formatTime(startHour),
       endTime: formatTime(endHour),
       duration,
-      sessionType: sessionTypes.find((t) => t.value === data.sessionType)
-        ?.label,
+      sessionType: sessionTypes.find((t) => t.value === data.sessionType)?.label,
       sessionIcon: sessionTypes.find((t) => t.value === data.sessionType)?.icon,
       groupSize: data.groupSize,
       ratePerHour: baseRate,
@@ -366,7 +320,6 @@ export default function BookingNew() {
     };
   };
 
-  // Handle review booking
   const onReview = (data) => {
     if (!isAuthenticated) {
       toast.error("Please login to continue");
@@ -380,7 +333,6 @@ export default function BookingNew() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Handle final booking submission
   const onConfirm = async () => {
     setIsSubmitting(true);
     try {
@@ -391,23 +343,18 @@ export default function BookingNew() {
         endTime: watchAll.endTime,
         sessionType: watchAll.sessionType,
         sessionDetails: {
-          participants: parseInt(
-            watchAll.groupSize.split("-")[1] || watchAll.groupSize.split("-")[0]
-          ),
+          participants: parseInt(watchAll.groupSize.split("-")[1] || watchAll.groupSize.split("-")[0]),
           specialRequirements: watchAll.specialRequirements || "",
         },
       };
 
-      const response = await api.post("/booking", bookingData);
-
-      toast.success("🎉 Booking confirmed! Check WhatsApp for details.");
+      await api.post("/booking", bookingData);
+      toast.success("🎉 Booking confirmed!");
       reset();
       setShowConfirmation(false);
       setRecommendations([]);
       setAvailableStartTimes([]);
       setAvailableEndTimes([]);
-
-      // Refresh calendar
       fetchTimetable();
 
       setTimeout(() => {
@@ -421,7 +368,6 @@ export default function BookingNew() {
     }
   };
 
-  // Min/max dates
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const minDate = format(tomorrow, "yyyy-MM-dd");
@@ -435,68 +381,38 @@ export default function BookingNew() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 pt-20 pb-16 px-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
             🎵 Resonance - Sinhgad Road
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">
-            Book Your Perfect Studio Session
-          </p>
+          <p className="text-lg text-gray-600 dark:text-gray-400">Book Your Perfect Studio Session</p>
           <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-            📍 45, Shivprasad Housing Society, Panmala, Dattawadi, Pune - 411
-            030
+            📍 45, Shivprasad Housing Society, Panmala, Dattawadi, Pune - 411 030
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-500">
-            ⏰ Open: 8:00 AM - 10:00 PM (Every Day)
-          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">⏰ Open: 8:00 AM - 10:00 PM (Every Day)</p>
         </motion.div>
 
         <AnimatePresence mode="wait">
           {!showConfirmation ? (
-            <motion.div
-              key="booking-form"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-6"
-            >
-              {/* CALENDAR SECTION */}
-              {/* CALENDAR SECTION */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-3 sm:p-4 md:p-6 border border-gray-200 dark:border-gray-700"
-              >
-                {/* Calendar Header */}
+            <motion.div key="booking-form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+              
+              {/* CALENDAR */}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-3 sm:p-4 md:p-6 border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                     <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                     <span>Studio Availability</span>
                   </h2>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={goToPrevious}
-                      className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      aria-label="Previous dates"
-                    >
+                    <button onClick={goToPrevious} className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                       <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
-                    <button
-                      onClick={goToNext}
-                      className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      aria-label="Next dates"
-                    >
+                    <button onClick={goToNext} className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                       <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
                 </div>
 
-                {/* Legend */}
                 <div className="flex flex-wrap gap-2 sm:gap-3 mb-4 text-xs sm:text-sm">
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <div className="w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded"></div>
@@ -512,109 +428,69 @@ export default function BookingNew() {
                   </div>
                 </div>
 
-                {/* Calendar Table */}
                 {loadingCalendar ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                   </div>
                 ) : (
                   <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-                    <div className="inline-block min-w-full align-middle">
-                      <table className="w-full border-collapse text-[10px] xs:text-xs sm:text-sm">
-                        <thead>
-                          <tr>
-                            <th className="border border-gray-300 dark:border-gray-600 p-1.5 sm:p-2 bg-gray-100 dark:bg-gray-700 sticky left-0 z-20 min-w-[80px] sm:min-w-[120px]">
-                              <div className="font-semibold text-left">
-                                Studio
-                              </div>
+                    <table className="w-full border-collapse text-[10px] xs:text-xs sm:text-sm">
+                      <thead>
+                        <tr>
+                          <th className="border border-gray-300 dark:border-gray-600 p-1.5 sm:p-2 bg-gray-100 dark:bg-gray-700 sticky left-0 z-20 min-w-[80px] sm:min-w-[120px]">
+                            <div className="font-semibold text-left">Studio</div>
+                          </th>
+                          {calendarDates.map((date, idx) => (
+                            <th
+                              key={idx}
+                              onClick={() => handleCalendarDateClick(date)}
+                              className="border border-gray-300 dark:border-gray-600 p-1.5 sm:p-2 bg-gray-100 dark:bg-gray-700 text-center min-w-[100px] sm:min-w-[150px] cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
+                              title="Click to select this date"
+                            >
+                              <div className="font-semibold">{format(date, "EEE")}</div>
+                              <div className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">{format(date, "MMM dd")}</div>
                             </th>
-                            {calendarDates.map((date, idx) => (
-                              <th
-                                key={idx}
-                                className="border border-gray-300 dark:border-gray-600 p-1.5 sm:p-2 bg-gray-100 dark:bg-gray-700 text-center min-w-[100px] sm:min-w-[150px]"
-                              >
-                                <div className="font-semibold">
-                                  {format(date, "EEE")}
-                                </div>
-                                <div className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">
-                                  {format(date, "MMM dd")}
-                                </div>
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {timetableData?.studios?.map((studio) => (
-                            <tr key={studio.id}>
-                              <td className="border border-gray-300 dark:border-gray-600 p-1.5 sm:p-2 bg-gray-50 dark:bg-gray-800 sticky left-0 z-10">
-                                <div className="font-medium text-left">
-                                  {studio.name}
-                                </div>
-                                <div className="text-[9px] sm:text-xs text-gray-500 dark:text-gray-400">
-                                  {STUDIO_INFO[studio.name]?.size}
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {timetableData?.studios?.map((studio) => (
+                          <tr key={studio.id}>
+                            <td className="border border-gray-300 dark:border-gray-600 p-1.5 sm:p-2 bg-gray-50 dark:bg-gray-800 sticky left-0 z-10">
+                              <div className="font-medium text-left">{studio.name}</div>
+                              <div className="text-[9px] sm:text-xs text-gray-500 dark:text-gray-400">{STUDIO_INFO[studio.name]?.size}</div>
+                            </td>
+                            {calendarDates.map((date, dateIdx) => (
+                              <td key={dateIdx} className="border border-gray-300 dark:border-gray-600 p-0.5 sm:p-1">
+                                <div className="flex flex-col gap-0.5">
+                                  {timetableData?.timeSlots?.slice(0, 14).map((time, timeIdx) => {
+                                    const colorClass = getCalendarSlotColor(studio.id, date, time);
+                                    const hour = parseInt(time.split(":")[0]);
+                                    return (
+                                      <div
+                                        key={timeIdx}
+                                        className={`flex items-center justify-center h-5 sm:h-6 rounded text-[9px] sm:text-xs font-medium ${colorClass}`}
+                                        title={`${studio.name} - ${formatTime(hour)}`}
+                                      >
+                                        <span className="hidden sm:inline">{formatTime(hour)}</span>
+                                        <span className="sm:hidden">{hour}</span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </td>
-                              {calendarDates.map((date, dateIdx) => (
-                                <td
-                                  key={dateIdx}
-                                  className="border border-gray-300 dark:border-gray-600 p-0.5 sm:p-1"
-                                >
-                                  <div className="flex flex-col gap-0.5">
-                                    {timetableData?.timeSlots
-                                      ?.slice(0, 14)
-                                      .map((time, timeIdx) => {
-                                        const colorClass = getCalendarSlotColor(
-                                          studio.id,
-                                          date,
-                                          time
-                                        );
-                                        const hour = parseInt(
-                                          time.split(":")[0]
-                                        );
-                                        const timeLabel = formatTime(hour);
-
-                                        return (
-                                          <div
-                                            key={timeIdx}
-                                            className={`relative flex items-center justify-center h-5 sm:h-6 rounded text-[9px] sm:text-xs font-medium ${colorClass}`}
-                                            title={`${studio.name} - ${timeLabel}`}
-                                          >
-                                            <span className="hidden sm:inline">
-                                              {timeLabel}
-                                            </span>
-                                            <span className="sm:hidden">
-                                              {hour}
-                                            </span>
-                                          </div>
-                                        );
-                                      })}
-                                  </div>
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
-
-                {/* Mobile Scroll Hint */}
-                <div className="mt-3 text-center text-xs text-gray-500 dark:text-gray-400 sm:hidden">
-                  ← Scroll horizontally to see more dates →
-                </div>
               </motion.div>
 
-              {/* BOOKING FORM SECTION */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border border-gray-200 dark:border-gray-700"
-              >
-                <h2 className="text-2xl font-bold text-center text-blue-600 dark:text-blue-400 mb-6">
-                  📝 Booking Request Form
-                </h2>
+              {/* FORM */}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-center text-blue-600 dark:text-blue-400 mb-6">📝 Booking Request Form</h2>
 
                 <form onSubmit={handleSubmit(onReview)} className="space-y-5">
                   {/* Session Type */}
@@ -622,17 +498,10 @@ export default function BookingNew() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Session Type <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      {...register("sessionType", {
-                        required: "Please select session type",
-                      })}
-                      className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
+                    <select {...register("sessionType", { required: "Please select session type" })} className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                       <option value="">Choose session type</option>
                       {sessionTypes.map((type) => (
-                        <option key={type.value} value={type.value}>
-                          {type.icon} {type.label}
-                        </option>
+                        <option key={type.value} value={type.value}>{type.icon} {type.label}</option>
                       ))}
                     </select>
                     {errors.sessionType && (
@@ -645,24 +514,14 @@ export default function BookingNew() {
 
                   {/* Group Size */}
                   {sessionType && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                    >
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Group Size <span className="text-red-500">*</span>
                       </label>
-                      <select
-                        {...register("groupSize", {
-                          required: "Please select group size",
-                        })}
-                        className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
+                      <select {...register("groupSize", { required: "Please select group size" })} className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         <option value="">Choose group size</option>
                         {selectedSessionType?.groups.map((size) => (
-                          <option key={size} value={size}>
-                            {size} participants
-                          </option>
+                          <option key={size} value={size}>{size} participants</option>
                         ))}
                       </select>
                       {errors.groupSize && (
@@ -676,64 +535,37 @@ export default function BookingNew() {
 
                   {/* Recommendations */}
                   {recommendations.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4"
-                    >
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold text-yellow-800 dark:text-yellow-300 mb-3">
                         <Info className="w-4 h-4" />
                         Recommended for you:
                       </div>
                       <div className="space-y-2">
-                        {recommendations.map((studio, idx) => (
-                          <div
-                            key={studio._id}
-                            className="flex justify-between items-center text-sm"
-                          >
+                        {recommendations.map((studio) => (
+                          <div key={studio._id} className="flex justify-between items-center text-sm">
                             <span className="font-medium text-yellow-900 dark:text-yellow-200">
                               {studio.name} ({STUDIO_INFO[studio.name]?.size})
                             </span>
-                            <span className="font-semibold text-yellow-800 dark:text-yellow-300">
-                              ₹{studio.price}/hr
-                            </span>
+                            <span className="font-semibold text-yellow-800 dark:text-yellow-300">₹{studio.price}/hr</span>
                           </div>
                         ))}
                       </div>
                     </motion.div>
                   )}
 
-                  {/* Studio Selection */}
+                  {/* Studio */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Select Studio <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      {...register("studioId", {
-                        required: "Please select a studio",
-                      })}
-                      className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={!sessionType || !groupSize}
-                    >
-                      <option value="">
-                        {!sessionType
-                          ? "Choose session type first"
-                          : !groupSize
-                          ? "Choose group size first"
-                          : "Choose a studio"}
-                      </option>
+                    <select {...register("studioId", { required: "Please select a studio" })} className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!sessionType || !groupSize}>
+                      <option value="">{!sessionType ? "Choose session type first" : !groupSize ? "Choose group size first" : "Choose a studio"}</option>
                       {recommendations.length > 0
                         ? recommendations.map((studio) => (
-                            <option key={studio._id} value={studio._id}>
-                              {studio.name} - ₹{studio.price}/hr (
-                              {STUDIO_INFO[studio.name]?.size})
-                            </option>
+                            <option key={studio._id} value={studio._id}>{studio.name} - ₹{studio.price}/hr ({STUDIO_INFO[studio.name]?.size})</option>
                           ))
                         : studios.map((studio) => (
-                            <option key={studio._id} value={studio._id}>
-                              {studio.name} - ₹
-                              {STUDIO_INFO[studio.name]?.price || 0}/hr
-                            </option>
+                            <option key={studio._id} value={studio._id}>{studio.name} - ₹{STUDIO_INFO[studio.name]?.price || 0}/hr</option>
                           ))}
                     </select>
                     {errors.studioId && (
@@ -744,91 +576,111 @@ export default function BookingNew() {
                     )}
                   </div>
 
-                  {/* Date */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Date <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      {...register("date", {
-                        required: "Please select a date",
-                      })}
-                      min={minDate}
-                      max={maxDateStr}
-                      className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    {errors.date && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
-                        {errors.date.message}
-                      </p>
-                    )}
-                  </div>
+                  {/* Date Picker - FIXED VERSION */}
+<div>
+  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+    Select Date <span className="text-red-500">*</span>
+  </label>
+  
+  <div className="relative">
+    <input
+      type="date"
+      {...register("date", {
+        required: "Please select a date",
+        validate: {
+          notPast: (value) => {
+            if (!value) return true;
+            const selected = new Date(value);
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            selected.setHours(0, 0, 0, 0);
+            return selected >= tomorrow || "Bookings start from tomorrow";
+          },
+          notTooFar: (value) => {
+            if (!value) return true;
+            const selected = new Date(value);
+            const maxDate = new Date();
+            maxDate.setMonth(maxDate.getMonth() + 4);
+            return selected <= maxDate || "Cannot book more than 4 months ahead";
+          }
+        }
+      })}
+      min={minDate}
+      max={maxDateStr}
+      onChange={(e) => {
+        const selectedDate = e.target.value;
+        setValue("date", selectedDate);
+        
+        if (selectedDate) {
+          const dateObj = new Date(selectedDate);
+          setCalendarDate(dateObj);
+        }
+      }}
+      className="w-full px-4 py-2.5 pr-10 text-base bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
+      style={{
+        colorScheme: 'light',
+        WebkitAppearance: 'none',
+        MozAppearance: 'textfield'
+      }}
+      placeholder="Select a date"
+      disabled={!studioId}
+      onClick={(e) => {
+        // Force calendar to open on click
+        if (!e.target.showPicker) {
+          e.target.focus();
+        } else {
+          try {
+            e.target.showPicker();
+          } catch (error) {
+            console.log('Picker not supported, using default');
+          }
+        }
+      }}
+    />
+    <div 
+      className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+      aria-hidden="true"
+    >
+      <Calendar className="w-5 h-5 text-gray-400" />
+    </div>
+  </div>
 
-                  {/* Availability Checker */}
-                  {checkingAvailability && (
-                    <div className="flex items-center gap-2 text-sm text-blue-600">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Checking availability...
-                    </div>
-                  )}
-
-                  {/* Booked Slots Info */}
-                  {date &&
-                    studioId &&
-                    !checkingAvailability &&
-                    bookedSlots.length > 0 && (
-                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                        <div className="flex items-start gap-2 text-sm text-red-800 dark:text-red-300">
-                          <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <p className="font-medium mb-1">Already Booked:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              {bookedSlots.map((slot, idx) => (
-                                <li key={idx}>
-                                  {formatTime(slot.start)} -{" "}
-                                  {formatTime(slot.end)}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+  {!studioId && (
+    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+      <Info className="w-3 h-3" />
+      Please select a studio first
+    </p>
+  )}
+  
+  {errors.date && (
+    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+      <AlertCircle className="w-3 h-3" />
+      {errors.date.message}
+    </p>
+  )}
+  
+  {date && !errors.date && (
+    <p className="text-green-600 dark:text-green-400 text-xs mt-1 flex items-center gap-1">
+      <CheckCircle className="w-3 h-3" />
+      {format(new Date(date), "EEEE, MMMM dd, yyyy")}
+    </p>
+  )}
+  
+  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+    📅 Click to open calendar picker (bookings from tomorrow onwards)
+  </p>
+</div>
 
                   {/* Start Time */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Start Time <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      {...register("startTime", {
-                        required: "Please select start time",
-                      })}
-                      className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={
-                        !date ||
-                        !studioId ||
-                        checkingAvailability ||
-                        availableStartTimes.length === 0
-                      }
-                    >
-                      <option value="">
-                        {!date
-                          ? "Select date first"
-                          : !studioId
-                          ? "Select studio first"
-                          : checkingAvailability
-                          ? "Checking..."
-                          : availableStartTimes.length === 0
-                          ? "No slots available"
-                          : "Choose start time"}
-                      </option>
+                    <select {...register("startTime", { required: "Please select start time" })} className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!date || !studioId || checkingAvailability || availableStartTimes.length === 0}>
+                      <option value="">{!date ? "Select date first" : !studioId ? "Select studio first" : checkingAvailability ? "Checking..." : availableStartTimes.length === 0 ? "No slots available" : "Choose start time"}</option>
                       {availableStartTimes.map((slot) => (
-                        <option key={slot.value} value={slot.value}>
-                          {slot.label}
-                        </option>
+                        <option key={slot.value} value={slot.value}>{slot.label}</option>
                       ))}
                     </select>
                     {errors.startTime && (
@@ -844,24 +696,10 @@ export default function BookingNew() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       End Time <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      {...register("endTime", {
-                        required: "Please select end time",
-                      })}
-                      className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={!startTime}
-                    >
-                      <option value="">
-                        {!startTime
-                          ? "Select start time first"
-                          : availableEndTimes.length === 0
-                          ? "No end times available"
-                          : "Choose end time"}
-                      </option>
+                    <select {...register("endTime", { required: "Please select end time" })} className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!startTime}>
+                      <option value="">{!startTime ? "Select start time first" : availableEndTimes.length === 0 ? "No end times available" : "Choose end time"}</option>
                       {availableEndTimes.map((slot) => (
-                        <option key={slot.value} value={slot.value}>
-                          {slot.label}
-                        </option>
+                        <option key={slot.value} value={slot.value}>{slot.label}</option>
                       ))}
                     </select>
                     {errors.endTime && (
@@ -873,36 +711,18 @@ export default function BookingNew() {
                     {startTime && endTime && (
                       <p className="text-green-600 text-xs mt-1 flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" />
-                        Duration:{" "}
-                        {parseInt(endTime.split(":")[0]) -
-                          parseInt(startTime.split(":")[0])}{" "}
-                        hour(s)
+                        Duration: {parseInt(endTime.split(":")[0]) - parseInt(startTime.split(":")[0])} hour(s)
                       </p>
                     )}
                   </div>
 
                   {/* Special Requirements */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Special Requirements (Optional)
-                    </label>
-                    <textarea
-                      {...register("specialRequirements")}
-                      rows={3}
-                      className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                      placeholder="Any special equipment or arrangements needed..."
-                    />
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Special Requirements (Optional)</label>
+                    <textarea {...register("specialRequirements")} rows={3} className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" placeholder="Any special equipment or arrangements needed..." />
                   </div>
 
-                  {/* Submit Button */}
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    size="lg"
-                    disabled={
-                      checkingAvailability || availableStartTimes.length === 0
-                    }
-                  >
+                  <Button type="submit" className="w-full" size="lg" disabled={checkingAvailability || availableStartTimes.length === 0}>
                     Review Booking
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
@@ -910,154 +730,70 @@ export default function BookingNew() {
               </motion.div>
             </motion.div>
           ) : (
-            // CONFIRMATION SCREEN
-            <motion.div
-              key="confirmation"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border border-gray-200 dark:border-gray-700 max-w-2xl mx-auto"
-            >
+            <motion.div key="confirmation" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border border-gray-200 dark:border-gray-700 max-w-2xl mx-auto">
               <div className="text-center mb-6">
                 <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  Confirm Your Booking
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Please review your booking details
-                </p>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">Confirm Your Booking</h2>
+                <p className="text-gray-600 dark:text-gray-400">Please review your booking details</p>
               </div>
 
               {bookingSummary && (
                 <div className="space-y-4 mb-6">
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-700 rounded-lg p-4 space-y-3">
                     <div className="flex justify-between items-start">
-                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                        Studio:
-                      </span>
-                      <span className="text-sm font-bold text-gray-900 dark:text-white text-right">
-                        {bookingSummary.studio} <br />
-                        <span className="text-xs text-gray-500">
-                          ({bookingSummary.studioSize})
-                        </span>
-                      </span>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Studio:</span>
+                      <span className="text-sm font-bold text-gray-900 dark:text-white text-right">{bookingSummary.studio} <br /><span className="text-xs text-gray-500">({bookingSummary.studioSize})</span></span>
                     </div>
-
                     <div className="flex justify-between items-start">
-                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                        Date:
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white text-right">
-                        {bookingSummary.date}
-                      </span>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Date:</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white text-right">{bookingSummary.date}</span>
                     </div>
-
                     <div className="flex justify-between items-start">
-                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                        Time:
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {bookingSummary.startTime} - {bookingSummary.endTime}
-                      </span>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Time:</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{bookingSummary.startTime} - {bookingSummary.endTime}</span>
                     </div>
-
                     <div className="flex justify-between items-start">
-                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                        Duration:
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {bookingSummary.duration} hour(s)
-                      </span>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Duration:</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{bookingSummary.duration} hour(s)</span>
                     </div>
-
                     <div className="flex justify-between items-start">
-                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                        Session:
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {bookingSummary.sessionIcon}{" "}
-                        {bookingSummary.sessionType}
-                      </span>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Session:</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{bookingSummary.sessionIcon} {bookingSummary.sessionType}</span>
                     </div>
-
                     <div className="flex justify-between items-start">
-                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                        Participants:
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {bookingSummary.groupSize}
-                      </span>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Participants:</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{bookingSummary.groupSize}</span>
                     </div>
                   </div>
 
-                  {/* Pricing */}
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Rate per hour:
-                      </span>
-                      <span className="font-medium">
-                        ₹{bookingSummary.ratePerHour}
-                      </span>
+                      <span className="text-gray-600 dark:text-gray-400">Rate per hour:</span>
+                      <span className="font-medium">₹{bookingSummary.ratePerHour}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Subtotal:
-                      </span>
-                      <span className="font-medium">
-                        ₹{bookingSummary.subtotal}
-                      </span>
+                      <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
+                      <span className="font-medium">₹{bookingSummary.subtotal}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Taxes (18% GST):
-                      </span>
-                      <span className="font-medium">
-                        ₹{bookingSummary.taxes}
-                      </span>
+                      <span className="text-gray-600 dark:text-gray-400">Taxes (18% GST):</span>
+                      <span className="font-medium">₹{bookingSummary.taxes}</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold border-t border-gray-300 dark:border-gray-600 pt-2">
                       <span>Total Amount:</span>
-                      <span className="text-blue-600 dark:text-blue-400">
-                        ₹{bookingSummary.totalAmount}
-                      </span>
+                      <span className="text-blue-600 dark:text-blue-400">₹{bookingSummary.totalAmount}</span>
                     </div>
                   </div>
 
                   <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                    <p className="text-xs text-yellow-800 dark:text-yellow-300">
-                      💡 <strong>No advance payment required.</strong> Pay ₹
-                      {bookingSummary.totalAmount} at the studio after your
-                      session.
-                    </p>
+                    <p className="text-xs text-yellow-800 dark:text-yellow-300">💡 <strong>No advance payment required.</strong> Pay ₹{bookingSummary.totalAmount} at the studio after your session.</p>
                   </div>
                 </div>
               )}
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowConfirmation(false);
-                    window.scrollTo({
-                      top: document.querySelector("form").offsetTop - 100,
-                      behavior: "smooth",
-                    });
-                  }}
-                  disabled={isSubmitting}
-                >
-                  ← Back
-                </Button>
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  onClick={onConfirm}
-                  loading={isSubmitting}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Creating..." : "Confirm Booking"} ✓
-                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => { setShowConfirmation(false); window.scrollTo({ top: document.querySelector("form")?.offsetTop - 100 || 0, behavior: "smooth" }); }} disabled={isSubmitting}>← Back</Button>
+                <Button variant="primary" className="flex-1" onClick={onConfirm} loading={isSubmitting} disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Confirm Booking"} ✓</Button>
               </div>
             </motion.div>
           )}
