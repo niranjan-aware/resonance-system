@@ -11,7 +11,7 @@ const Header = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const location = useLocation();
   
-  const { user, isAuthenticated, logout, setShowAuthModal } = useAuthStore();
+  const { user, isAuthenticated, logout, setShowAuthModal, setAuthMode } = useAuthStore();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -43,6 +43,16 @@ const Header = () => {
   const handleLogout = () => {
     logout();
     setIsUserMenuOpen(false);
+  };
+
+  const handleLoginClick = () => {
+    setAuthMode('login'); // Set mode to login
+    setShowAuthModal(true);
+  };
+
+  const handleSignUpClick = () => {
+    setAuthMode('signup'); // Set mode to signup
+    setShowAuthModal(true);
   };
 
   return (
@@ -128,14 +138,14 @@ const Header = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowAuthModal(true)}
+                  onClick={handleLoginClick}
                 >
                   Login
                 </Button>
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => setShowAuthModal(true)}
+                  onClick={handleSignUpClick}
                 >
                   Sign Up
                 </Button>
@@ -206,14 +216,14 @@ const Header = () => {
                     <Button
                       variant="outline"
                       className="w-full"
-                      onClick={() => setShowAuthModal(true)}
+                      onClick={handleLoginClick}
                     >
                       Login
                     </Button>
                     <Button
                       variant="primary"
                       className="w-full"
-                      onClick={() => setShowAuthModal(true)}
+                      onClick={handleSignUpClick}
                     >
                       Sign Up
                     </Button>

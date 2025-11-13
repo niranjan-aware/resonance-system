@@ -11,8 +11,11 @@ export const useAuthStore = create(
       isAuthenticated: false,
       isLoading: false,
       showAuthModal: false,
+      authMode: 'login', // 'login' or 'signup' - NEW
 
       setShowAuthModal: (show) => set({ showAuthModal: show }),
+
+      setAuthMode: (mode) => set({ authMode: mode }), // NEW
 
       login: async (credentials) => {
         set({ isLoading: true, error: null });

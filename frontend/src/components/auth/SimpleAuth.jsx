@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Phone, User, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -6,11 +6,20 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 
 const SimpleAuth = () => {
-  const { showAuthModal, setShowAuthModal, login, isLoading } = useAuthStore();
+  const { showAuthModal, setShowAuthModal, login, isLoading, authMode, setAuthMode } = useAuthStore();
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
-  const [isNewUser, setIsNewUser] = useState(true);
+  const [isNewUser, setIsNewUser] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // Sync isNewUser with authMode from store
+  useEffect(() => {
+    if (authMode === 'signup') {
+      setIsNewUser(true);
+    } else if (authMode === 'login') {
+      setIsNewUser(false);
+    }
+  }, [authMode]);
 
   const validatePhone = (value) => {
     const phoneRegex = /^[0-9]{10}$/;
@@ -42,12 +51,11 @@ const SimpleAuth = () => {
     setErrors({});
 
     try {
-      // await login({phone, });
       await login({phone, name: isNewUser ? name : null});
       setPhone('');
       setName('');
       setIsNewUser(false);
-      setShowAuthModal(false)
+      setShowAuthModal(false);
     } catch (error) {
       // Error handled by store
     }
@@ -68,16 +76,26 @@ const SimpleAuth = () => {
     }
   };
 
+  const toggleMode = () => {
+    const newMode = isNewUser ? 'login' : 'signup';
+    setIsNewUser(!isNewUser);
+    setAuthMode(newMode);
+    setErrors({});
+  };
+
+  const handleClose = () => {
+    setShowAuthModal(false);
+    setPhone('');
+    setName('');
+    setIsNewUser(false);
+    setAuthMode('login');
+    setErrors({});
+  };
+
   return (
     <Modal
       isOpen={showAuthModal}
-      onClose={() => {
-        setShowAuthModal(false);
-        setPhone('');
-        setName('');
-        setIsNewUser(false);
-        setErrors({});
-      }}
+      onClose={handleClose}
       title={isNewUser ? 'Create Account' : 'Welcome Back'}
       size="sm"
     >
@@ -96,6 +114,8 @@ const SimpleAuth = () => {
               placeholder="9876543210"
               className={`input-field pl-11 ${errors.phone ? 'border-error-500 focus:ring-error-500' : ''}`}
               disabled={isLoading}
+              autoFocus
+              autoComplete="tel"
             />
           </div>
           {errors.phone && (
@@ -125,6 +145,7 @@ const SimpleAuth = () => {
                 placeholder="John Doe"
                 className={`input-field pl-11 ${errors.name ? 'border-error-500 focus:ring-error-500' : ''}`}
                 disabled={isLoading}
+                autoComplete="tel"
               />
             </div>
             {errors.name && (
@@ -148,10 +169,7 @@ const SimpleAuth = () => {
         <div className="text-center">
           <button
             type="button"
-            onClick={() => {
-              setIsNewUser(!isNewUser);
-              setErrors({});
-            }}
+            onClick={toggleMode}
             className="text-sm text-primary-600 hover:text-primary-700 font-medium"
             disabled={isLoading}
           >
