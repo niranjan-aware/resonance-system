@@ -9,7 +9,7 @@ const SimpleAuth = () => {
   const { showAuthModal, setShowAuthModal, login, isLoading } = useAuthStore();
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
-  const [isNewUser, setIsNewUser] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(true);
   const [errors, setErrors] = useState({});
 
   const validatePhone = (value) => {
@@ -42,7 +42,8 @@ const SimpleAuth = () => {
     setErrors({});
 
     try {
-      await login({phone, });
+      // await login({phone, });
+      await login({phone, name: isNewUser ? name : null});
       setPhone('');
       setName('');
       setIsNewUser(false);
