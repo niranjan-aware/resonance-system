@@ -42,10 +42,11 @@ const SimpleAuth = () => {
     setErrors({});
 
     try {
-      await login(phone, isNewUser ? name : null);
+      await login({phone, });
       setPhone('');
       setName('');
       setIsNewUser(false);
+      setShowAuthModal(false)
     } catch (error) {
       // Error handled by store
     }
