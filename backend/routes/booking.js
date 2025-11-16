@@ -1,44 +1,34 @@
 import express from 'express';
 import {
   createBooking,
-  getMyBookings,
-  getBookingById,
+  getBookingsByPhone,
   getTimetable,
   checkAvailability,
-  cancelBooking,
-  rescheduleBooking,
-  updateBookingStatus,
-  getAllBookings
+  cancelBookingByPhone
 } from '../controllers/bookingController.js';
-import { protect, authorize } from '../middleware/auth.js';
-import { optionalAuth } from '../middleware/optionalAuth.js'; // ✅ ADD THIS
 import { bookingLimiter } from '../middleware/rateLimiting.js';
 import {
   validateCreateBooking,
   validateCheckAvailability,
-  validateReschedule,
   validateMongoId,
-  validateTimetable,
-  validateUpdateStatus
+  validateTimetable
 } from '../middleware/validation.js';
 
 const router = express.Router();
 
-// ✅ Public routes (with optional auth for ownership detection)
-router.get('/timetable', optionalAuth, validateTimetable, getTimetable);
+// ✅ All routes are now PUBLIC (no authentication required)
+
+// Public routes
+router.get('/timetable', validateTimetable, getTimetable);
 router.post('/check-availability', validateCheckAvailability, checkAvailability);
 
-// Protected routes (require authentication)
-router.use(protect);
-
+// Booking creation (requires phone number)
 router.post('/', bookingLimiter, validateCreateBooking, createBooking);
-router.get('/my-bookings', getMyBookings);
-router.get('/:id', validateMongoId, getBookingById);
-router.put('/:id/cancel', validateMongoId, cancelBooking);
-router.put('/:id/reschedule', validateMongoId, validateReschedule, rescheduleBooking);
 
-// Admin routes
-router.get('/admin/all', authorize('admin'), getAllBookings);
-router.put('/:id/status', authorize('admin'), validateMongoId, validateUpdateStatus, updateBookingStatus);
+// Get bookings by phone number
+router.post('/by-phone', getBookingsByPhone);
+
+// Cancel booking by phone + booking ID
+router.put('/:id/cancel-by-phone', validateMongoId, cancelBookingByPhone);
 
 export default router;

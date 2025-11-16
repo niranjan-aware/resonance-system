@@ -45,9 +45,7 @@ const TimetableCalendar = ({ onSlotSelect, selectedStudio }) => {
       const response = await api.get('/booking/timetable', { params });
       setTimetableData(response.data.timetable);
       
-      // Debug log
       console.log('📅 Timetable loaded:', response.data.timetable);
-      console.log('📋 Bookings:', response.data.timetable.bookings);
     } catch (error) {
       console.error('Error fetching timetable:', error);
     } finally {
@@ -64,14 +62,19 @@ const TimetableCalendar = ({ onSlotSelect, selectedStudio }) => {
     setCurrentDate(prev => addDays(prev, 3));
   };
 
-  // ✅ FIXED - Get booking that covers this time slot
+  // Handle date picker change
+  const handleDateChange = (e) => {
+    const selectedDate = new Date(e.target.value);
+    setCurrentDate(selectedDate);
+  };
+
+  // Get booking that covers this time slot
   const getSlotBooking = (studioId, date, time) => {
     if (!timetableData?.bookings) return null;
     
     const currentHour = parseInt(time.split(':')[0]);
     const dateStr = format(date, 'yyyy-MM-dd');
     
-    // Find booking that covers this hour
     const booking = timetableData.bookings.find(b => {
       if (b.studioId !== studioId || b.date !== dateStr) {
         return false;
@@ -80,7 +83,6 @@ const TimetableCalendar = ({ onSlotSelect, selectedStudio }) => {
       const startHour = parseInt(b.startTime.split(':')[0]);
       const endHour = parseInt(b.endTime.split(':')[0]);
       
-      // Check if current hour is within booking range
       return currentHour >= startHour && currentHour < endHour;
     });
     
@@ -104,51 +106,112 @@ const TimetableCalendar = ({ onSlotSelect, selectedStudio }) => {
     };
 
     setSelectedSlot(slot);
-    onSlotSelect(slot);
+    if (onSlotSelect) {
+      onSlotSelect(slot);
+    }
   };
 
-  // ✅ FIXED - Get slot color based on booking ownership
+  // ✅ Get studio colors (matching your image)
+  const getStudioColor = (studioName) => {
+    if (studioName.includes('Studio A')) return '#3B82F6'; // Blue
+    if (studioName.includes('Studio B')) return '#92400E'; // Brown
+    if (studioName.includes('Studio C')) return '#10B981'; // Green
+    return '#6B7280'; // Gray default
+  };
+
+  // Get slot color based on booking
   const getSlotColor = (studio, date, time) => {
     const booking = getSlotBooking(studio.id, date, time);
     
     if (booking) {
-      // Debug log
-      if (booking.isOwn) {
-        console.log(`🔵 Blue slot: ${studio.name} at ${time} (isOwn: true)`);
-      } else {
-        console.log(`⚫ Gray slot: ${studio.name} at ${time} (isOwn: false)`);
-      }
-      
-      return booking.isOwn
-        ? 'bg-blue-500 hover:bg-blue-600 text-white cursor-pointer' // YOUR booking - BLUE
-        : 'bg-gray-400 text-white cursor-not-allowed'; // Others' booking - GRAY
+      const studioColor = getStudioColor(studio.name);
+      return {
+        backgroundColor: studioColor,
+        color: 'white',
+        cursor: booking.isOwn ? 'pointer' : 'not-allowed',
+        opacity: booking.isOwn ? 1 : 0.7
+      };
     }
     
-    return 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'; // Available - GREEN
+    return {
+      backgroundColor: 'transparent',
+      color: 'currentColor',
+      cursor: 'default'
+    };
   };
+
+  // Generate time slots (8 AM - 10 PM)
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let hour = 8; hour <= 22; hour++) {
+      const time24 = `${hour.toString().padStart(2, '0')}:00`;
+      const isPM = hour >= 12;
+      const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+      const timeLabel = `${hour12} ${isPM ? 'PM' : 'AM'}`;
+      
+      slots.push({
+        time24,
+        label: timeLabel,
+        hour
+      });
+    }
+    return slots;
+  };
+
+  const timeSlots = generateTimeSlots();
+
+  // Min date for picker (today)
+  const minDate = format(new Date(), 'yyyy-MM-dd');
+  
+  // Max date (4 months from now)
+  const maxDateObj = new Date();
+  maxDateObj.setMonth(maxDateObj.getMonth() + 4);
+  const maxDate = format(maxDateObj, 'yyyy-MM-dd');
 
   if (loading) {
     return <Loading text="Loading timetable..." />;
   }
 
   return (
-    <div className="card p-4 md:p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 md:p-6 border border-gray-200 dark:border-gray-700">
+      {/* Header with Date Picker */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h3 className="text-xl font-bold flex items-center gap-2">
-          <CalendarIcon className="w-6 h-6 text-primary-600" />
-          Select Time Slot
+          <CalendarIcon className="w-6 h-6 text-blue-600" />
+          Studio Availability Calendar
         </h3>
-        <div className="flex items-center gap-2">
+        
+        <div className="flex items-center gap-3">
+          {/* Date Picker */}
+          <div className="relative">
+            <input
+              type="date"
+              value={format(currentDate, 'yyyy-MM-dd')}
+              onChange={handleDateChange}
+              min={minDate}
+              max={maxDate}
+              className="px-4 py-2 pr-10 text-sm bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
+              style={{
+                colorScheme: 'light',
+              }}
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <CalendarIcon className="w-4 h-4 text-gray-400" />
+            </div>
+          </div>
+
+          {/* Navigation Buttons */}
           <button
             onClick={goToPrevious}
-            className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            title="Previous 3 days"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={goToNext}
-            className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            title="Next 3 days"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -158,81 +221,134 @@ const TimetableCalendar = ({ onSlotSelect, selectedStudio }) => {
       {/* Legend */}
       <div className="flex flex-wrap gap-4 mb-6 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500 rounded"></div>
-          <span>Available</span>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#3B82F6' }}></div>
+          <span>Studio A</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-500 rounded"></div>
-          <span>Your Booking</span>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#92400E' }}></div>
+          <span>Studio B</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gray-400 rounded"></div>
-          <span>Booked by Others</span>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#10B981' }}></div>
+          <span>Studio C</span>
         </div>
       </div>
 
-      {/* Timetable */}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[600px] border-collapse">
+      {/* Timetable - Matching Image Layout */}
+      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <table className="w-full border-collapse text-sm" style={{ minWidth: '700px' }}>
           <thead>
+            {/* Date Row */}
             <tr>
-              <th className="border border-secondary-300 dark:border-secondary-700 p-2 bg-secondary-100 dark:bg-secondary-800 sticky left-0 z-10">
-                Time / Studio
+              <th 
+                colSpan="1" 
+                className="border-2 border-gray-900 dark:border-gray-300 p-2 bg-gray-100 dark:bg-gray-700 font-bold text-left"
+              >
+                DATE
               </th>
               {dates.map((date, idx) => (
                 <th
                   key={idx}
-                  className="border border-secondary-300 dark:border-secondary-700 p-2 bg-secondary-100 dark:bg-secondary-800 text-center"
+                  colSpan={timetableData?.studios?.length || 3}
+                  className="border-2 border-gray-900 dark:border-gray-300 p-2 bg-gray-100 dark:bg-gray-700 text-center font-bold"
                 >
-                  <div className="font-semibold">{format(date, 'EEE')}</div>
-                  <div className="text-sm">{format(date, 'MMM dd')}</div>
+                  {format(date, 'd')}
                 </th>
+              ))}
+            </tr>
+
+            {/* Time/Studio Row */}
+            <tr>
+              <th className="border-2 border-gray-900 dark:border-gray-300 p-2 bg-gray-100 dark:bg-gray-700 font-bold text-left">
+                TIME/STUDIO
+              </th>
+              {dates.map((date, dateIdx) => (
+                timetableData?.studios?.map((studio, studioIdx) => (
+                  <th
+                    key={`${dateIdx}-${studioIdx}`}
+                    className="border-2 border-gray-900 dark:border-gray-300 p-2 bg-gray-100 dark:bg-gray-700 text-center font-bold"
+                  >
+                    {studio.name.includes('Studio A') ? 'A' : 
+                     studio.name.includes('Studio B') ? 'B' : 
+                     studio.name.includes('Studio C') ? 'C' : 
+                     studio.name.charAt(studio.name.length - 1)}
+                  </th>
+                ))
               ))}
             </tr>
           </thead>
           <tbody>
-            {timetableData?.studios?.map((studio) => (
-              <tr key={studio.id}>
-                <td className="border border-secondary-300 dark:border-secondary-700 p-2 font-medium bg-secondary-50 dark:bg-secondary-900 sticky left-0 z-10">
-                  {studio.name}
+            {timeSlots.map((timeSlot, timeIdx) => (
+              <tr key={timeIdx}>
+                {/* Time Column */}
+                <td className="border-2 border-gray-900 dark:border-gray-300 p-2 font-bold bg-gray-50 dark:bg-gray-800 whitespace-nowrap">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-lg">{timeSlot.hour === 12 ? '12' : timeSlot.hour > 12 ? timeSlot.hour - 12 : timeSlot.hour}</span>
+                    <span className="text-xs">{timeSlot.hour >= 12 ? 'PM' : 'AM'}</span>
+                  </div>
                 </td>
-                {dates.map((date, dateIdx) => (
-                  <td
-                    key={dateIdx}
-                    className="border border-secondary-300 dark:border-secondary-700 p-1"
-                  >
-                    <div className="space-y-1">
-                      {timetableData?.timeSlots?.map((time, timeIdx) => {
-                        const booking = getSlotBooking(studio.id, date, time);
-                        const colorClass = getSlotColor(studio, date, time);
-                        const isSelected = 
-                          selectedSlot?.studioId === studio.id &&
-                          selectedSlot?.date === format(date, 'yyyy-MM-dd') &&
-                          selectedSlot?.time === time;
 
-                        return (
-                          <motion.button
-                            key={timeIdx}
-                            whileHover={{ scale: booking && !booking.isOwn ? 1 : 1.05 }}
-                            whileTap={{ scale: booking && !booking.isOwn ? 1 : 0.95 }}
-                            onClick={() => handleSlotClick(studio, date, time)}
-                            disabled={booking && !booking.isOwn}
-                            className={`w-full px-2 py-1 rounded text-xs font-medium transition-all ${colorClass} ${
-                              isSelected ? 'ring-2 ring-accent-500 ring-offset-2' : ''
-                            }`}
-                          >
-                            {time}
-                          </motion.button>
-                        );
-                      })}
-                    </div>
-                  </td>
+                {/* Studio Cells for Each Date */}
+                {dates.map((date, dateIdx) => (
+                  timetableData?.studios?.map((studio, studioIdx) => {
+                    const booking = getSlotBooking(studio.id, date, timeSlot.time24);
+                    const slotStyle = getSlotColor(studio, date, timeSlot.time24);
+                    const isSelected = 
+                      selectedSlot?.studioId === studio.id &&
+                      selectedSlot?.date === format(date, 'yyyy-MM-dd') &&
+                      selectedSlot?.time === timeSlot.time24;
+
+                    return (
+                      <td
+                        key={`${dateIdx}-${studioIdx}`}
+                        className="border-2 border-gray-900 dark:border-gray-300 p-0 relative"
+                        style={{
+                          backgroundColor: slotStyle.backgroundColor,
+                          cursor: slotStyle.cursor,
+                          opacity: slotStyle.opacity
+                        }}
+                        onClick={() => handleSlotClick(studio, date, timeSlot.time24)}
+                      >
+                        <div 
+                          className={`w-full h-12 sm:h-14 flex items-center justify-center transition-all ${
+                            isSelected ? 'ring-4 ring-yellow-400 ring-inset' : ''
+                          } ${
+                            !booking ? 'hover:bg-gray-100 dark:hover:bg-gray-700' : ''
+                          }`}
+                          style={{
+                            color: slotStyle.color
+                          }}
+                        >
+                          {/* Show indicator if booked */}
+                          {booking && (
+                            <div className="text-white font-bold text-xs sm:text-sm">
+                              {booking.isOwn ? '★' : '●'}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Selected Slot Info */}
+      {selectedSlot && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+        >
+          <p className="text-sm">
+            <strong>Selected:</strong> {selectedSlot.studioName} on {format(new Date(selectedSlot.date), 'MMMM dd, yyyy')} at {selectedSlot.time}
+            {selectedSlot.booking && <span className="ml-2 text-blue-600">(Your Booking)</span>}
+          </p>
+        </motion.div>
+      )}
     </div>
   );
 };

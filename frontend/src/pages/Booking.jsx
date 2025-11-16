@@ -6,8 +6,6 @@ import toast from "react-hot-toast";
 import {
   Calendar,
   Clock,
-  Music,
-  Users,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -16,10 +14,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Phone,
+  User,
+  Search,
+  Trash2
 } from "lucide-react";
 
 import Button from "../components/common/Button";
-import { useAuthStore } from "../store/useAuthStore";
 import api from "../services/api";
 
 const sessionTypes = [
@@ -38,9 +39,13 @@ const STUDIO_INFO = {
   "Studio C - Resonance Sinhgad Road": { size: "Large", price: 1000 },
 };
 
-export default function BookingNew() {
-  const { user, isAuthenticated, setShowAuthModal } = useAuthStore();
+const STATUS_COLORS = {
+  confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
+  cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
+  completed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
+};
 
+export default function BookingNew() {
   // Calendar state
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [timetableData, setTimetableData] = useState(null);
@@ -56,6 +61,12 @@ export default function BookingNew() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [bookingSummary, setBookingSummary] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ✅ My Bookings state
+  const [myBookingsPhone, setMyBookingsPhone] = useState("");
+  const [myBookings, setMyBookings] = useState([]);
+  const [loadingMyBookings, setLoadingMyBookings] = useState(false);
+  const [showMyBookings, setShowMyBookings] = useState(false);
 
   const {
     register,
@@ -73,6 +84,8 @@ export default function BookingNew() {
       startTime: "",
       endTime: "",
       specialRequirements: "",
+      phone: "", // ✅ NEW
+      name: ""   // ✅ NEW (optional)
     },
   });
 
@@ -180,7 +193,7 @@ export default function BookingNew() {
     });
 
     if (booking) {
-      return booking.isOwn ? "bg-blue-500 text-white" : "bg-gray-400 text-white";
+      return "bg-gray-400 text-white";
     }
 
     return "bg-green-500 text-white";
@@ -317,16 +330,12 @@ export default function BookingNew() {
       taxes,
       totalAmount: total,
       specialRequirements: data.specialRequirements,
+      phone: data.phone,
+      name: data.name
     };
   };
 
   const onReview = (data) => {
-    if (!isAuthenticated) {
-      toast.error("Please login to continue");
-      setShowAuthModal(true);
-      return;
-    }
-
     const summary = calculateSummary(data);
     setBookingSummary(summary);
     setShowConfirmation(true);
@@ -346,10 +355,13 @@ export default function BookingNew() {
           participants: parseInt(watchAll.groupSize.split("-")[1] || watchAll.groupSize.split("-")[0]),
           specialRequirements: watchAll.specialRequirements || "",
         },
+        phone: watchAll.phone,  // ✅ NEW
+        name: watchAll.name || null  // ✅ NEW (optional)
       };
 
       await api.post("/booking", bookingData);
       toast.success("🎉 Booking confirmed!");
+      
       reset();
       setShowConfirmation(false);
       setRecommendations([]);
@@ -357,14 +369,62 @@ export default function BookingNew() {
       setAvailableEndTimes([]);
       fetchTimetable();
 
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 2000);
+      // ✅ Auto-load their bookings
+      if (watchAll.phone) {
+        setMyBookingsPhone(watchAll.phone);
+        setTimeout(() => fetchMyBookings(watchAll.phone), 1000);
+      }
     } catch (error) {
       console.error("Booking error:", error);
       toast.error(error.response?.data?.message || "Failed to create booking");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // ✅ Fetch bookings by phone
+  const fetchMyBookings = async (phone) => {
+    if (!phone || phone.length !== 10) {
+      toast.error("Please enter a valid 10-digit phone number");
+      return;
+    }
+
+    setLoadingMyBookings(true);
+    try {
+      const response = await api.post("/booking/by-phone", { phone });
+      setMyBookings(response.data.bookings || []);
+      setShowMyBookings(true);
+      
+      if (response.data.count === 0) {
+        toast.info("No bookings found for this phone number");
+      } else {
+        toast.success(`Found ${response.data.count} booking(s)`);
+      }
+    } catch (error) {
+      console.error("Fetch bookings error:", error);
+      toast.error("Failed to fetch bookings");
+      setMyBookings([]);
+    } finally {
+      setLoadingMyBookings(false);
+    }
+  };
+
+  // ✅ Cancel booking
+  const handleCancelBooking = async (bookingId) => {
+    if (!window.confirm("Are you sure you want to cancel this booking?")) {
+      return;
+    }
+
+    try {
+      await api.put(`/booking/${bookingId}/cancel-by-phone`, {
+        phone: myBookingsPhone
+      });
+      
+      toast.success("Booking cancelled successfully");
+      fetchMyBookings(myBookingsPhone); // Refresh list
+      fetchTimetable(); // Refresh calendar
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to cancel booking");
     }
   };
 
@@ -417,10 +477,6 @@ export default function BookingNew() {
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <div className="w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded"></div>
                     <span>Available</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="w-3 h-3 sm:w-4 sm:h-4 bg-blue-500 rounded"></div>
-                    <span>Your Booking</span>
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <div className="w-3 h-3 sm:w-4 sm:h-4 bg-gray-400 rounded"></div>
@@ -493,6 +549,49 @@ export default function BookingNew() {
                 <h2 className="text-2xl font-bold text-center text-blue-600 dark:text-blue-400 mb-6">📝 Booking Request Form</h2>
 
                 <form onSubmit={handleSubmit(onReview)} className="space-y-5">
+                  
+                  {/* Phone Number - REQUIRED */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <Phone className="w-4 h-4 inline mr-1" />
+                      Phone Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      {...register("phone", {
+                        required: "Phone number is required",
+                        pattern: {
+                          value: /^[0-9]{10}$/,
+                          message: "Please enter a valid 10-digit phone number"
+                        }
+                      })}
+                      placeholder="9876543210"
+                      autoComplete="tel"
+                      className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    {errors.phone && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.phone.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Name - OPTIONAL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <User className="w-4 h-4 inline mr-1" />
+                      Your Name (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      {...register("name")}
+                      placeholder="John Doe"
+                      autoComplete="tel"
+                      className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
                   {/* Session Type */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -576,101 +675,100 @@ export default function BookingNew() {
                     )}
                   </div>
 
-                  {/* Date Picker - FIXED VERSION */}
-<div>
-  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-    Select Date <span className="text-red-500">*</span>
-  </label>
-  
-  <div className="relative">
-    <input
-      type="date"
-      {...register("date", {
-        required: "Please select a date",
-        validate: {
-          notPast: (value) => {
-            if (!value) return true;
-            const selected = new Date(value);
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            tomorrow.setHours(0, 0, 0, 0);
-            selected.setHours(0, 0, 0, 0);
-            return selected >= tomorrow || "Bookings start from tomorrow";
-          },
-          notTooFar: (value) => {
-            if (!value) return true;
-            const selected = new Date(value);
-            const maxDate = new Date();
-            maxDate.setMonth(maxDate.getMonth() + 4);
-            return selected <= maxDate || "Cannot book more than 4 months ahead";
-          }
-        }
-      })}
-      min={minDate}
-      max={maxDateStr}
-      onChange={(e) => {
-        const selectedDate = e.target.value;
-        setValue("date", selectedDate);
-        
-        if (selectedDate) {
-          const dateObj = new Date(selectedDate);
-          setCalendarDate(dateObj);
-        }
-      }}
-      className="w-full px-4 py-2.5 pr-10 text-base bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
-      style={{
-        colorScheme: 'light',
-        WebkitAppearance: 'none',
-        MozAppearance: 'textfield'
-      }}
-      placeholder="Select a date"
-      disabled={!studioId}
-      onClick={(e) => {
-        // Force calendar to open on click
-        if (!e.target.showPicker) {
-          e.target.focus();
-        } else {
-          try {
-            e.target.showPicker();
-          } catch (error) {
-            console.log('Picker not supported, using default');
-          }
-        }
-      }}
-    />
-    <div 
-      className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-      aria-hidden="true"
-    >
-      <Calendar className="w-5 h-5 text-gray-400" />
-    </div>
-  </div>
+                  {/* Date Picker */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Select Date <span className="text-red-500">*</span>
+                    </label>
+                    
+                    <div className="relative">
+                      <input
+                        type="date"
+                        {...register("date", {
+                          required: "Please select a date",
+                          validate: {
+                            notPast: (value) => {
+                              if (!value) return true;
+                              const selected = new Date(value);
+                              const tomorrow = new Date();
+                              tomorrow.setDate(tomorrow.getDate() + 1);
+                              tomorrow.setHours(0, 0, 0, 0);
+                              selected.setHours(0, 0, 0, 0);
+                              return selected >= tomorrow || "Bookings start from tomorrow";
+                            },
+                            notTooFar: (value) => {
+                              if (!value) return true;
+                              const selected = new Date(value);
+                              const maxDate = new Date();
+                              maxDate.setMonth(maxDate.getMonth() + 4);
+                              return selected <= maxDate || "Cannot book more than 4 months ahead";
+                            }
+                          }
+                        })}
+                        min={minDate}
+                        max={maxDateStr}
+                        onChange={(e) => {
+                          const selectedDate = e.target.value;
+                          setValue("date", selectedDate);
+                          
+                          if (selectedDate) {
+                            const dateObj = new Date(selectedDate);
+                            setCalendarDate(dateObj);
+                          }
+                        }}
+                        className="w-full px-4 py-2.5 pr-10 text-base bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
+                        style={{
+                          colorScheme: 'light',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'textfield'
+                        }}
+                        placeholder="Select a date"
+                        disabled={!studioId}
+                        onClick={(e) => {
+                          if (!e.target.showPicker) {
+                            e.target.focus();
+                          } else {
+                            try {
+                              e.target.showPicker();
+                            } catch (error) {
+                              console.log('Picker not supported, using default');
+                            }
+                          }
+                        }}
+                      />
+                      <div 
+                        className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                        aria-hidden="true"
+                      >
+                        <Calendar className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </div>
 
-  {!studioId && (
-    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
-      <Info className="w-3 h-3" />
-      Please select a studio first
-    </p>
-  )}
-  
-  {errors.date && (
-    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-      <AlertCircle className="w-3 h-3" />
-      {errors.date.message}
-    </p>
-  )}
-  
-  {date && !errors.date && (
-    <p className="text-green-600 dark:text-green-400 text-xs mt-1 flex items-center gap-1">
-      <CheckCircle className="w-3 h-3" />
-      {format(new Date(date), "EEEE, MMMM dd, yyyy")}
-    </p>
-  )}
-  
-  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-    📅 Click to open calendar picker (bookings from tomorrow onwards)
-  </p>
-</div>
+                    {!studioId && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                        <Info className="w-3 h-3" />
+                        Please select a studio first
+                      </p>
+                    )}
+                    
+                    {errors.date && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.date.message}
+                      </p>
+                    )}
+                    
+                    {date && !errors.date && (
+                      <p className="text-green-600 dark:text-green-400 text-xs mt-1 flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        {format(new Date(date), "EEEE, MMMM dd, yyyy")}
+                      </p>
+                    )}
+                    
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      📅 Click to open calendar picker (bookings from tomorrow onwards)
+                    </p>
+                  </div>
 
                   {/* Start Time */}
                   <div>
@@ -728,6 +826,104 @@ export default function BookingNew() {
                   </Button>
                 </form>
               </motion.div>
+
+              {/* ✅ MY BOOKINGS SECTION */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                transition={{ delay: 0.2 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border border-gray-200 dark:border-gray-700"
+              >
+                <h2 className="text-2xl font-bold text-center text-purple-600 dark:text-purple-400 mb-6">
+                  🔍 View My Bookings
+                </h2>
+
+                <div className="flex gap-3 mb-6">
+                  <div className="flex-1">
+                    <input
+                      type="tel"
+                      value={myBookingsPhone}
+                      onChange={(e) => setMyBookingsPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="Enter your phone number (10 digits)"
+                      autoComplete="tel"
+                      className="w-full px-4 py-3 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          fetchMyBookings(myBookingsPhone);
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    onClick={() => fetchMyBookings(myBookingsPhone)}
+                    disabled={loadingMyBookings || myBookingsPhone.length !== 10}
+                    loading={loadingMyBookings}
+                  >
+                    <Search className="w-4 h-4" />
+                    Search
+                  </Button>
+                </div>
+
+                {/* Bookings List */}
+                {showMyBookings && (
+                  <div className="space-y-4">
+                    {myBookings.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>No bookings found for this phone number</p>
+                      </div>
+                    ) : (
+                      myBookings.map((booking) => {
+                        const isUpcoming = booking.status === 'confirmed' && new Date(booking.date) >= new Date();
+                        
+                        return (
+                          <div
+                            key={booking._id}
+                            className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600"
+                          >
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h3 className="font-bold text-lg">{booking.studio?.name}</h3>
+                                <p className="text-xs text-gray-500 font-mono">#{booking.bookingId}</p>
+                              </div>
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[booking.status]}`}>
+                                {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-blue-600" />
+                                <span>{format(new Date(booking.date), 'MMM dd, yyyy')}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-blue-600" />
+                                <span>{booking.timeSlot?.startTime12h} - {booking.timeSlot?.endTime12h}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="font-semibold">₹{booking.pricing?.totalAmount}</span>
+                              
+                              {isUpcoming && (
+                                <Button
+                                  variant="error"
+                                  size="sm"
+                                  onClick={() => handleCancelBooking(booking._id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Cancel
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </motion.div>
+
             </motion.div>
           ) : (
             <motion.div key="confirmation" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border border-gray-200 dark:border-gray-700 max-w-2xl mx-auto">
@@ -740,6 +936,16 @@ export default function BookingNew() {
               {bookingSummary && (
                 <div className="space-y-4 mb-6">
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-700 rounded-lg p-4 space-y-3">
+                    
+                    {/* Phone & Name */}
+                    <div className="flex justify-between items-start border-b pb-2">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Contact:</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white text-right">
+                        📱 {bookingSummary.phone}
+                        {bookingSummary.name && <><br/>👤 {bookingSummary.name}</>}
+                      </span>
+                    </div>
+
                     <div className="flex justify-between items-start">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Studio:</span>
                       <span className="text-sm font-bold text-gray-900 dark:text-white text-right">{bookingSummary.studio} <br /><span className="text-xs text-gray-500">({bookingSummary.studioSize})</span></span>

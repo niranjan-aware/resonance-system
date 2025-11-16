@@ -135,7 +135,7 @@ const Header = () => {
               </div>
             ) : (
               <>
-                <Button
+                {/* <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleLoginClick}
@@ -148,7 +148,7 @@ const Header = () => {
                   onClick={handleSignUpClick}
                 >
                   Sign Up
-                </Button>
+                </Button> */}
               </>
             )}
           </div>
@@ -213,7 +213,7 @@ const Header = () => {
                   </>
                 ) : (
                   <>
-                    <Button
+                    {/* <Button
                       variant="outline"
                       className="w-full"
                       onClick={handleLoginClick}
@@ -226,7 +226,7 @@ const Header = () => {
                       onClick={handleSignUpClick}
                     >
                       Sign Up
-                    </Button>
+                    </Button> */}
                   </>
                 )}
               </div>
