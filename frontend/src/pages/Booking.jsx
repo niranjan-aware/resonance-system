@@ -514,7 +514,7 @@ export default function BookingNew() {
                 {/* Header with Date Picker */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                   <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                    <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                    {/* <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" /> */}
                     <span>Studio Availability</span>
                   </h2>
                   
@@ -659,7 +659,7 @@ export default function BookingNew() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       <Phone className="w-4 h-4 inline mr-1" />
-                      Phone Number <span className="text-red-500">*</span>
+                      Phone Number (10 numbers only) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="tel"
@@ -828,7 +828,7 @@ export default function BookingNew() {
                         className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
                         aria-hidden="true"
                       >
-                        <Calendar className="w-5 h-5 text-gray-400" />
+                        {/* <Calendar className="w-5 h-5 text-gray-400" /> */}
                       </div>
                     </div>
 
