@@ -50,6 +50,7 @@ export default function BookingNew() {
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [timetableData, setTimetableData] = useState(null);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Form state
   const [studios, setStudios] = useState([]);
@@ -92,10 +93,22 @@ export default function BookingNew() {
   const watchAll = watch();
   const { sessionType, groupSize, studioId, date, startTime, endTime } = watchAll;
 
-  // Generate 3 consecutive days for calendar
+  // Check screen size for responsive calendar
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Generate dates for calendar (1 for mobile, 3 for desktop)
   const getCalendarDates = () => {
     const dates = [];
-    for (let i = 0; i < 3; i++) {
+    const count = isMobile ? 1 : 3;
+    for (let i = 0; i < count; i++) {
       dates.push(addDays(calendarDate, i));
     }
     return dates;
@@ -121,13 +134,13 @@ export default function BookingNew() {
   // Fetch calendar timetable
   useEffect(() => {
     fetchTimetable();
-  }, [calendarDate]);
+  }, [calendarDate, isMobile]);
 
   const fetchTimetable = async () => {
     setLoadingCalendar(true);
     try {
       const startDate = format(calendarDates[0], "yyyy-MM-dd");
-      const endDate = format(calendarDates[2], "yyyy-MM-dd");
+      const endDate = format(calendarDates[calendarDates.length - 1], "yyyy-MM-dd");
 
       const response = await api.get("/booking/timetable", {
         params: { startDate, endDate },
@@ -146,21 +159,23 @@ export default function BookingNew() {
     if (date) {
       const selectedDate = new Date(date);
       const calendarStart = calendarDate;
-      const calendarEnd = addDays(calendarDate, 2);
+      const calendarEnd = addDays(calendarDate, isMobile ? 0 : 2);
       
       if (selectedDate < calendarStart || selectedDate > calendarEnd) {
         setCalendarDate(selectedDate);
       }
     }
-  }, [date, calendarDate]);
+  }, [date, calendarDate, isMobile]);
 
   // Navigate calendar
   const goToPrevious = () => {
-    setCalendarDate((prev) => addDays(prev, -3));
+    const daysToMove = isMobile ? 1 : 3;
+    setCalendarDate((prev) => addDays(prev, -daysToMove));
   };
 
   const goToNext = () => {
-    setCalendarDate((prev) => addDays(prev, 3));
+    const daysToMove = isMobile ? 1 : 3;
+    setCalendarDate((prev) => addDays(prev, daysToMove));
   };
 
   // Get calendar slot color based on studio and booking
@@ -180,11 +195,9 @@ export default function BookingNew() {
     });
 
     if (booking) {
-      // Booked - use studio color
       return `${STUDIO_INFO[studioName]?.color || 'bg-gray-500'} text-white`;
     }
 
-    // Available - white/empty
     return "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600";
   };
 
@@ -291,9 +304,15 @@ export default function BookingNew() {
 
   // Format time range for display  
   const formatTimeRange = (start, end) => {
-    const startLabel = formatTime(start);
-    const endLabel = formatTime(end);
-    return `${startLabel} - ${endLabel}`;
+    const startHour = start < 12 ? start : (start === 12 ? 12 : start - 12);
+    const endHour = end < 12 ? end : (end === 12 ? 12 : end - 12);
+    const startPeriod = start < 12 ? 'AM' : 'PM';
+    const endPeriod = end < 12 ? 'AM' : 'PM';
+    
+    if (startPeriod === endPeriod) {
+      return `${startHour}-${endHour} ${endPeriod}`;
+    }
+    return `${startHour} ${startPeriod}-${endHour} ${endPeriod}`;
   };
 
   // Get available time ranges
@@ -407,7 +426,10 @@ export default function BookingNew() {
       };
 
       await api.post("/booking", bookingData);
+      
+      // Scroll to top to show success message
       window.scrollTo({ top: 0, behavior: "smooth" });
+      
       toast.success("🎉 Booking confirmed!");
       
       reset();
@@ -485,10 +507,14 @@ export default function BookingNew() {
 
   const selectedSessionType = sessionTypes.find((t) => t.value === sessionType);
 
-  // Generate time slots from 8 AM to 10 PM
+  // Generate time slots from 8 AM to 10 PM with ranges
   const timeSlots = [];
   for (let hour = 8; hour < 22; hour++) {
-    timeSlots.push(`${hour.toString().padStart(2, "0")}:00`);
+    timeSlots.push({
+      time24: `${hour.toString().padStart(2, "0")}:00`,
+      hour: hour,
+      label: formatTimeRange(hour, hour + 1)
+    });
   }
 
   return (
@@ -510,16 +536,15 @@ export default function BookingNew() {
             <motion.div key="booking-form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
               
               {/* CALENDAR LAYOUT */}
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-3 sm:p-4 md:p-6 border border-gray-200 dark:border-gray-700">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`bg-white dark:bg-gray-800 rounded-2xl shadow-xl ${isMobile ? 'p-3' : 'p-4 md:p-6'} border border-gray-200 dark:border-gray-700`}>
                 
                 {/* Header with Date Picker */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-                  <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                    {/* <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" /> */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+                  <h2 className={`${isMobile ? 'text-base' : 'text-lg sm:text-xl'} font-bold flex items-center gap-2`}>
                     <span>Studio Availability</span>
                   </h2>
                   
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
                     {/* Date Picker */}
                     <div className="relative flex-1 sm:flex-initial">
                       <input
@@ -532,38 +557,46 @@ export default function BookingNew() {
                         }}
                         min={format(new Date(), "yyyy-MM-dd")}
                         max={maxDateStr}
-                        className="px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto"
+                        className={`${isMobile ? 'px-2 py-1.5 text-xs' : 'px-3 py-2 text-sm'} bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto`}
                       />
                     </div>
 
                     {/* Navigation Buttons */}
-                    <div className="flex items-center gap-2">
-                      <button onClick={goToPrevious} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                        <ChevronLeft className="w-5 h-5" />
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={goToPrevious} 
+                        className={`${isMobile ? 'p-1' : 'p-2'} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}
+                        title={isMobile ? "Previous day" : "Previous 3 days"}
+                      >
+                        <ChevronLeft className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
                       </button>
-                      <button onClick={goToNext} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                        <ChevronRight className="w-5 h-5" />
+                      <button 
+                        onClick={goToNext} 
+                        className={`${isMobile ? 'p-1' : 'p-2'} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}
+                        title={isMobile ? "Next day" : "Next 3 days"}
+                      >
+                        <ChevronRight className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
                       </button>
                     </div>
                   </div>
                 </div>
 
                 {/* Legend */}
-                <div className="flex flex-wrap gap-3 mb-4 text-xs sm:text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                <div className={`flex flex-wrap ${isMobile ? 'gap-2' : 'gap-3'} mb-4 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} bg-blue-500 rounded`}></div>
                     <span>Studio A</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-amber-700 rounded"></div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} bg-amber-700 rounded`}></div>
                     <span>Studio B</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-500 rounded"></div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} bg-green-500 rounded`}></div>
                     <span>Studio C</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-white border border-gray-300 rounded"></div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} bg-white border border-gray-300 rounded`}></div>
                     <span>Available</span>
                   </div>
                 </div>
@@ -573,40 +606,78 @@ export default function BookingNew() {
                     <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                   </div>
                 ) : (
-                  <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-                    <table className="w-full border-collapse text-xs sm:text-sm min-w-[800px]">
+                  <div className="w-full">
+                    <table className="w-full border-collapse">
                       <thead>
                         {/* Date Row */}
                         <tr>
-                          <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[100px]">
-                            <div className="font-bold">DATE</div>
+                          <th 
+                            className="border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700" 
+                            style={{ 
+                              width: isMobile ? '28%' : '100px',
+                              padding: isMobile ? '8px 4px' : '8px',
+                              fontSize: isMobile ? '11px' : '14px'
+                            }}
+                          >
+                            <div className="font-bold">TIME</div>
                           </th>
                           {calendarDates.map((date, idx) => (
                             <th
                               key={idx}
                               colSpan={3}
-                              className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 text-center"
+                              className="border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-center"
+                              style={{ 
+                                padding: isMobile ? '8px 4px' : '8px',
+                                fontSize: isMobile ? '13px' : '14px'
+                              }}
                             >
                               <div className="font-bold">{format(date, "dd")}</div>
-                              <div className="text-xs text-gray-600 dark:text-gray-400">{format(date, "MMM")}</div>
+                              <div style={{ fontSize: isMobile ? '10px' : '12px' }} className="text-gray-600 dark:text-gray-400">{format(date, "MMM")}</div>
                             </th>
                           ))}
                         </tr>
 
                         {/* Studio Row */}
                         <tr>
-                          <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700">
-                            <div className="font-bold">TIME/STUDIO</div>
+                          <th 
+                            className="border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"
+                            style={{ 
+                              padding: isMobile ? '8px 4px' : '8px',
+                              fontSize: isMobile ? '11px' : '14px'
+                            }}
+                          >
+                            <div className="font-bold">STUDIO</div>
                           </th>
                           {calendarDates.map((date, dateIdx) => (
                             <Fragment key={dateIdx}>
-                              <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
+                              <th 
+                                className="border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"
+                                style={{ 
+                                  width: isMobile ? '24%' : '80px',
+                                  padding: isMobile ? '8px 4px' : '8px',
+                                  fontSize: isMobile ? '12px' : '14px'
+                                }}
+                              >
                                 <div className="font-bold">A</div>
                               </th>
-                              <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
+                              <th 
+                                className="border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"
+                                style={{ 
+                                  width: isMobile ? '24%' : '80px',
+                                  padding: isMobile ? '8px 4px' : '8px',
+                                  fontSize: isMobile ? '12px' : '14px'
+                                }}
+                              >
                                 <div className="font-bold">B</div>
                               </th>
-                              <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
+                              <th 
+                                className="border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"
+                                style={{ 
+                                  width: isMobile ? '24%' : '80px',
+                                  padding: isMobile ? '8px 4px' : '8px',
+                                  fontSize: isMobile ? '12px' : '14px'
+                                }}
+                              >
                                 <div className="font-bold">C</div>
                               </th>
                             </Fragment>
@@ -614,14 +685,19 @@ export default function BookingNew() {
                         </tr>
                       </thead>
                       <tbody>
-                        {timeSlots.map((time, timeIdx) => {
-                          const hour = parseInt(time.split(":")[0]);
+                        {timeSlots.map((timeSlot, timeIdx) => {
                           return (
                             <tr key={timeIdx}>
-                              {/* Time Column */}
-                              <td className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800 font-medium">
+                              {/* Time Column with Range */}
+                              <td 
+                                className="border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 font-medium"
+                                style={{ 
+                                  padding: isMobile ? '10px 4px' : '8px',
+                                  fontSize: isMobile ? '11px' : '12px'
+                                }}
+                              >
                                 <div className="flex items-center justify-center">
-                                  <span className="text-xs">{formatTime(hour)}</span>
+                                  <span className="whitespace-nowrap">{timeSlot.label}</span>
                                 </div>
                               </td>
 
@@ -629,13 +705,17 @@ export default function BookingNew() {
                               {calendarDates.map((calDate, dateIdx) => (
                                 <Fragment key={dateIdx}>
                                   {timetableData?.studios?.map((studio, studioIdx) => {
-                                    const colorClass = getCalendarSlotColor(studio.id, studio.name, calDate, time);
+                                    const colorClass = getCalendarSlotColor(studio.id, studio.name, calDate, timeSlot.time24);
                                     return (
                                       <td
                                         key={`${dateIdx}-${studioIdx}`}
-                                        className={`border border-gray-300 dark:border-gray-600 p-1 ${colorClass}`}
+                                        className={`border border-gray-300 dark:border-gray-600 ${colorClass}`}
+                                        style={{ 
+                                          padding: 0,
+                                          height: isMobile ? '40px' : '32px'
+                                        }}
                                       >
-                                        <div className="h-8"></div>
+                                        <div style={{ height: '100%', width: '100%' }}></div>
                                       </td>
                                     );
                                   })}
@@ -829,7 +909,6 @@ export default function BookingNew() {
                         className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
                         aria-hidden="true"
                       >
-                        {/* <Calendar className="w-5 h-5 text-gray-400" /> */}
                       </div>
                     </div>
 
@@ -1130,7 +1209,19 @@ export default function BookingNew() {
               )}
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => { setShowConfirmation(false); window.scrollTo({ top: document.querySelector("form")?.offsetTop - 100 || 0, behavior: "smooth" }); }} disabled={isSubmitting}>← Back</Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-1" 
+                  onClick={() => { 
+                    setShowConfirmation(false); 
+                    setTimeout(() => {
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }, 100);
+                  }} 
+                  disabled={isSubmitting}
+                >
+                  ← Back
+                </Button>
                 <Button variant="primary" className="flex-1" onClick={onConfirm} loading={isSubmitting} disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Confirm Booking"} ✓</Button>
               </div>
             </motion.div>
