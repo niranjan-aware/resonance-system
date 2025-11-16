@@ -407,6 +407,7 @@ export default function BookingNew() {
       };
 
       await api.post("/booking", bookingData);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       toast.success("🎉 Booking confirmed!");
       
       reset();
