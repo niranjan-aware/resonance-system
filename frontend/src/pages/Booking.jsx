@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { format, addDays } from "date-fns";
@@ -16,7 +16,8 @@ import {
   Phone,
   User,
   Search,
-  Trash2
+  Trash2,
+  XCircle
 } from "lucide-react";
 
 import Button from "../components/common/Button";
@@ -151,7 +152,7 @@ export default function BookingNew() {
         setCalendarDate(selectedDate);
       }
     }
-  }, [date]);
+  }, [date, calendarDate]);
 
   // Navigate calendar
   const goToPrevious = () => {
@@ -162,7 +163,7 @@ export default function BookingNew() {
     setCalendarDate((prev) => addDays(prev, 3));
   };
 
-  // ✅ NEW - Get calendar slot color based on studio and booking
+  // Get calendar slot color based on studio and booking
   const getCalendarSlotColor = (studioId, studioName, date, time) => {
     if (!timetableData?.bookings) {
       return "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600";
@@ -288,6 +289,44 @@ export default function BookingNew() {
     return `${hour - 12} PM`;
   };
 
+  // Format time range for display  
+  const formatTimeRange = (start, end) => {
+    const startLabel = formatTime(start);
+    const endLabel = formatTime(end);
+    return `${startLabel} - ${endLabel}`;
+  };
+
+  // Get available time ranges
+  const getAvailableRanges = () => {
+    if (availableStartTimes.length === 0) {
+      return [];
+    }
+
+    const ranges = [];
+    let currentRange = {
+      start: availableStartTimes[0].hour,
+      end: availableStartTimes[0].hour + 1
+    };
+
+    for (let i = 1; i < availableStartTimes.length; i++) {
+      const currentHour = availableStartTimes[i].hour;
+      
+      if (currentHour === currentRange.end) {
+        currentRange.end = currentHour + 1;
+      } else {
+        ranges.push({ ...currentRange });
+        currentRange = {
+          start: currentHour,
+          end: currentHour + 1
+        };
+      }
+    }
+
+    ranges.push(currentRange);
+    
+    return ranges;
+  };
+
   // Calculate summary
   const calculateSummary = (data) => {
     const studio = studios.find((s) => s._id === data.studioId);
@@ -299,9 +338,7 @@ export default function BookingNew() {
 
     const studioInfo = STUDIO_INFO[studio.name] || {};
     const baseRate = studioInfo.price || studio.pricing?.basePrice || 0;
-    const subtotal = baseRate * duration;
-    const taxes = Math.round(subtotal * 0.18);
-    const total = subtotal + taxes;
+    const totalAmount = baseRate * duration;
 
     return {
       studio: studio.name,
@@ -314,9 +351,7 @@ export default function BookingNew() {
       sessionIcon: sessionTypes.find((t) => t.value === data.sessionType)?.icon,
       groupSize: data.groupSize,
       ratePerHour: baseRate,
-      subtotal,
-      taxes,
-      totalAmount: total,
+      totalAmount,
       specialRequirements: data.specialRequirements,
       phone: data.phone,
       name: data.name
@@ -324,13 +359,37 @@ export default function BookingNew() {
   };
 
   const onReview = (data) => {
+    // Additional validation for times
+    if (!data.startTime || !data.endTime) {
+      toast.error("Please select both start time and end time");
+      return;
+    }
+
     const summary = calculateSummary(data);
+    if (!summary) {
+      toast.error("Unable to calculate booking summary");
+      return;
+    }
+
     setBookingSummary(summary);
     setShowConfirmation(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const onConfirm = async () => {
+    // Validate required fields before submission
+    if (!watchAll.startTime || !watchAll.endTime) {
+      toast.error("Please select both start time and end time");
+      setShowConfirmation(false);
+      return;
+    }
+
+    if (!watchAll.studioId || !watchAll.date || !watchAll.sessionType || !watchAll.phone) {
+      toast.error("Please fill in all required fields");
+      setShowConfirmation(false);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const bookingData = {
@@ -449,7 +508,7 @@ export default function BookingNew() {
           {!showConfirmation ? (
             <motion.div key="booking-form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
               
-              {/* ✅ NEW CALENDAR LAYOUT */}
+              {/* CALENDAR LAYOUT */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-3 sm:p-4 md:p-6 border border-gray-200 dark:border-gray-700">
                 
                 {/* Header with Date Picker */}
@@ -539,17 +598,17 @@ export default function BookingNew() {
                             <div className="font-bold">TIME/STUDIO</div>
                           </th>
                           {calendarDates.map((date, dateIdx) => (
-                            <>
-                              <th key={`${dateIdx}-A`} className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
+                            <Fragment key={dateIdx}>
+                              <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
                                 <div className="font-bold">A</div>
                               </th>
-                              <th key={`${dateIdx}-B`} className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
+                              <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
                                 <div className="font-bold">B</div>
                               </th>
-                              <th key={`${dateIdx}-C`} className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
+                              <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
                                 <div className="font-bold">C</div>
                               </th>
-                            </>
+                            </Fragment>
                           ))}
                         </tr>
                       </thead>
@@ -561,16 +620,15 @@ export default function BookingNew() {
                               {/* Time Column */}
                               <td className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800 font-medium">
                                 <div className="flex items-center justify-center">
-                                  <span className="text-xs">{hour}</span>
-                                  <span className="ml-1 text-xs">{formatTime(hour)}</span>
+                                  <span className="text-xs">{formatTime(hour)}</span>
                                 </div>
                               </td>
 
                               {/* Studio Columns for each date */}
-                              {calendarDates.map((date, dateIdx) => (
-                                <>
+                              {calendarDates.map((calDate, dateIdx) => (
+                                <Fragment key={dateIdx}>
                                   {timetableData?.studios?.map((studio, studioIdx) => {
-                                    const colorClass = getCalendarSlotColor(studio.id, studio.name, date, time);
+                                    const colorClass = getCalendarSlotColor(studio.id, studio.name, calDate, time);
                                     return (
                                       <td
                                         key={`${dateIdx}-${studioIdx}`}
@@ -580,7 +638,7 @@ export default function BookingNew() {
                                       </td>
                                     );
                                   })}
-                                </>
+                                </Fragment>
                               ))}
                             </tr>
                           );
@@ -591,7 +649,7 @@ export default function BookingNew() {
                 )}
               </motion.div>
 
-              {/* FORM - Keep existing form as is */}
+              {/* FORM */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border border-gray-200 dark:border-gray-700">
                 <h2 className="text-2xl font-bold text-center text-blue-600 dark:text-blue-400 mb-6">📝 Booking Request Form</h2>
 
@@ -796,6 +854,62 @@ export default function BookingNew() {
                     )}
                   </div>
 
+                  {/* Availability Display */}
+                  {checkingAvailability && date && studioId && (
+                    <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Checking availability...</span>
+                    </div>
+                  )}
+
+                  {!checkingAvailability && date && studioId && (
+                    <div className="space-y-3">
+                      {/* Booked Slots */}
+                      {bookedSlots.length > 0 && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                          <div className="flex items-start gap-2 text-sm text-red-800 dark:text-red-300">
+                            <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="font-medium mb-1">Already Booked Time Slots:</p>
+                              <ul className="list-disc list-inside space-y-1">
+                                {bookedSlots.map((slot, idx) => (
+                                  <li key={idx}>{formatTimeRange(slot.start, slot.end)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Available Time Ranges */}
+                      {availableStartTimes.length > 0 && (
+                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                          <div className="flex items-start gap-2 text-sm text-green-800 dark:text-green-300">
+                            <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="font-medium mb-1">Available Time Ranges:</p>
+                              <ul className="list-disc list-inside space-y-1">
+                                {getAvailableRanges().map((range, idx) => (
+                                  <li key={idx}>{formatTimeRange(range.start, range.end)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* No Available Slots */}
+                      {availableStartTimes.length === 0 && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-sm text-red-800 dark:text-red-300">
+                            <AlertCircle className="w-4 h-4" />
+                            <p className="font-medium">No available time slots for this date. Please choose another date.</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Start Time */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -853,7 +967,7 @@ export default function BookingNew() {
                 </form>
               </motion.div>
 
-              {/* MY BOOKINGS SECTION - Keep as is */}
+              {/* MY BOOKINGS SECTION */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }} 
@@ -895,12 +1009,10 @@ export default function BookingNew() {
                     {myBookings.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>No bookings found for this phone number</p>
+                        <p>No upcoming bookings found for this phone number</p>
                       </div>
                     ) : (
                       myBookings.map((booking) => {
-                        const isUpcoming = booking.status === 'confirmed' && new Date(booking.date) >= new Date();
-                        
                         return (
                           <div
                             key={booking._id}
@@ -930,7 +1042,7 @@ export default function BookingNew() {
                             <div className="flex justify-between items-center text-sm">
                               <span className="font-semibold">₹{booking.pricing?.totalAmount}</span>
                               
-                              {isUpcoming && (
+                              {booking.status === 'confirmed' && (
                                 <Button
                                   variant="error"
                                   size="sm"
@@ -953,7 +1065,6 @@ export default function BookingNew() {
           ) : (
             <motion.div key="confirmation" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border border-gray-200 dark:border-gray-700 max-w-2xl mx-auto">
               <div className="text-center mb-6">
-                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
                 <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">Confirm Your Booking</h2>
                 <p className="text-gray-600 dark:text-gray-400">Please review your booking details</p>
               </div>
@@ -1002,14 +1113,10 @@ export default function BookingNew() {
                       <span className="font-medium">₹{bookingSummary.ratePerHour}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
-                      <span className="font-medium">₹{bookingSummary.subtotal}</span>
+                      <span className="text-gray-600 dark:text-gray-400">Duration:</span>
+                      <span className="font-medium">{bookingSummary.duration} hour(s)</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Taxes (18% GST):</span>
-                      <span className="font-medium">₹{bookingSummary.taxes}</span>
-                    </div>
-                    <div className="flex justify-between text-lg font-bold border-t border-gray-300 dark:border-gray-600 pt-2">
+                    <div className="flex justify-between text-lg font-bold border-t border-gray-300 dark:border-gray-600 pt-2 mt-3">
                       <span>Total Amount:</span>
                       <span className="text-blue-600 dark:text-blue-400">₹{bookingSummary.totalAmount}</span>
                     </div>
