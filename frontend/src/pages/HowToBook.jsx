@@ -107,17 +107,17 @@ const HowToBook = () => {
                 </p>
               </div>
 
-              <div className="card p-6">
+              {/* <div className="card p-6">
                 <h3 className="font-semibold text-lg mb-2">🔔 Reminders</h3>
                 <p className="text-secondary-600 dark:text-secondary-400">
                   You'll receive WhatsApp reminders 12 hours, 6 hours, and 3 hours before your session.
                 </p>
-              </div>
+              </div> */}
 
               <div className="card p-6">
                 <h3 className="font-semibold text-lg mb-2">❌ Cancellation Policy</h3>
                 <p className="text-secondary-600 dark:text-secondary-400">
-                  Free cancellation with 24+ hours notice. Less than 24 hours: ₹100 fee. No-show: ₹200 penalty.
+                  Free cancellation with 24+ hours notice.
                 </p>
               </div>
 

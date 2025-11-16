@@ -54,12 +54,12 @@ const Home = () => {
               transition={{ duration: 0.8 }}
             >
               <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold mb-6 leading-tight">
-                Professional Studio
+                Resonance Studio
                 <br />
                 <span className="text-accent-400">Recording & Rehearsal</span>
               </h1>
               <p className="text-xl md:text-2xl mb-8 text-secondary-100 max-w-2xl mx-auto">
-                Premium recording studios in Pune with state-of-the-art equipment and professional sound engineers
+                Premium recording studio in Pune with state-of-the-art equipment and professional sound engineers
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
@@ -84,7 +84,7 @@ const Home = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-5 h-5 text-success-400" />
-                  <span>Rates from ₹250/hr</span>
+                  <span>Rates from ₹200/hr</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-5 h-5 text-success-400" />

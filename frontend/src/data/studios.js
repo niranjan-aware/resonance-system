@@ -1,4 +1,61 @@
 export const studiosData = {
+  studioC: {
+    id: 'studio-c',
+    name: 'Studio C',
+    size: 'small',
+    capacity: {
+      live: 'Up to 2 musicians',
+      karaoke: 'Up to 5 participants'
+    },
+    description: 'Primarily designed for audio/video recording and podcast production. Also ideal for small rehearsals.',
+    features: [
+      'Professional recording equipment',
+      'Video recording setup',
+      'Podcast production ready',
+      'Climate controlled',
+      'Intimate recording space'
+    ],
+    pricing: {
+      karaoke_1_5: 200,
+      live_2: 350,
+      audio_recording: 700,
+      video_recording: 800,
+      chroma_key: 1200
+    },
+    images: [
+      '/images/studio-c-1.jpg',
+      '/images/studio-c-2.jpg'
+    ],
+    suitableFor: ['karaoke', 'live-musicians', 'audio-recording', 'video-recording']
+  },
+  studioB: {
+    id: 'studio-b',
+    name: 'Studio B',
+    size: 'medium',
+    capacity: {
+      live: '4-5 musicians',
+      karaoke: 'Up to 12 participants'
+    },
+    description: 'A versatile, moderately sized studio that adapts to your needs. Primarily recommended for karaoke rehearsal groups.',
+    features: [
+      '46" TV screen for karaoke',
+      'Professional sound system',
+      'Climate controlled',
+      'Comfortable seating area'
+    ],
+    pricing: {
+      karaoke_1_5: 250,
+      karaoke_6_12: 300,
+      live_2: 400,
+      live_4_5: 400,
+      live_5: 500
+    },
+    images: [
+      '/images/studio-b-1.jpg',
+      '/images/studio-b-2.jpg'
+    ],
+    suitableFor: ['karaoke', 'live-musicians']
+  },
   studioA: {
     id: 'studio-a',
     name: 'Studio A',
@@ -14,6 +71,8 @@ export const studiosData = {
       'One Keyboard',
       'Two Guitar Amps',
       'One Bass Amp',
+      'Climate controlled',
+      'Professional sound system',
       'Huge 65" TV screen for karaoke'
     ],
     pricing: {
@@ -38,62 +97,7 @@ export const studiosData = {
     ],
     suitableFor: ['karaoke', 'live-musicians', 'band']
   },
-  studioB: {
-    id: 'studio-b',
-    name: 'Studio B',
-    size: 'medium',
-    capacity: {
-      live: '4-5 musicians',
-      karaoke: 'Up to 12 participants'
-    },
-    description: 'A versatile, moderately sized studio that adapts to your needs. Primarily recommended for karaoke rehearsal groups.',
-    features: [
-      '46" TV screen for karaoke',
-      'Professional sound system',
-      'Climate controlled',
-      'Comfortable seating area'
-    ],
-    pricing: {
-      karaoke_1_5: 300,
-      karaoke_6_12: 300,
-      live_2: 400,
-      live_4_5: 400,
-      live_5: 500
-    },
-    images: [
-      '/images/studio-b-1.jpg',
-      '/images/studio-b-2.jpg'
-    ],
-    suitableFor: ['karaoke', 'live-musicians']
-  },
-  studioC: {
-    id: 'studio-c',
-    name: 'Studio C',
-    size: 'small',
-    capacity: {
-      live: 'Up to 2 musicians',
-      karaoke: 'Up to 5 participants'
-    },
-    description: 'Primarily designed for audio/video recording and podcast production. Also ideal for small rehearsals.',
-    features: [
-      'Professional recording equipment',
-      'Video recording setup',
-      'Podcast production ready',
-      'Intimate recording space'
-    ],
-    pricing: {
-      karaoke_1_5: 250,
-      live_2: 350,
-      audio_recording: 700,
-      video_recording: 800,
-      chroma_key: 1200
-    },
-    images: [
-      '/images/studio-c-1.jpg',
-      '/images/studio-c-2.jpg'
-    ],
-    suitableFor: ['karaoke', 'live-musicians', 'audio-recording', 'video-recording']
-  }
+  
 };
 
 export const studiosList = Object.values(studiosData);
