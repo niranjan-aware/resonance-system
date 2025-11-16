@@ -173,7 +173,7 @@ export const createBooking = async (req, res) => {
 // @access  Public
 export const getBookingsByPhone = async (req, res) => {
   try {
-    const { phone, filter } = req.body; // ✅ Added optional filter parameter
+    const { phone } = req.body;
 
     if (!phone) {
       return res.status(400).json({
@@ -194,26 +194,20 @@ export const getBookingsByPhone = async (req, res) => {
       });
     }
 
-    // ✅ Build query - show ALL bookings by default
-    const query = { user: user._id };
+    // ✅ Show ONLY upcoming bookings (from today onwards, not cancelled)
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Start of today
     
-    // ✅ Optional filter: 'upcoming', 'past', or 'all' (default)
-    if (filter === 'upcoming') {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0); // Start of today
-      query.date = { $gte: now };
-      query.status = { $ne: 'cancelled' };
-    } else if (filter === 'past') {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      query.date = { $lt: now };
-    }
-    // If filter is 'all' or not provided, no date filter is applied
+    const query = { 
+      user: user._id,
+      date: { $gte: now }, // Only future/today bookings
+      status: 'confirmed' // Only confirmed bookings (exclude cancelled, completed, no-show)
+    };
 
     // Get bookings for this user
     const bookings = await Booking.find(query)
       .populate("studio", "name size")
-      .sort({ date: -1, "timeSlot.startTime": 1 }); // ✅ Newest first
+      .sort({ date: 1, "timeSlot.startTime": 1 }); // ✅ Oldest first (chronological order)
 
     res.status(200).json({
       success: true,

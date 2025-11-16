@@ -7,7 +7,6 @@ import {
   Calendar,
   Clock,
   CheckCircle,
-  XCircle,
   AlertCircle,
   Info,
   ArrowRight,
@@ -34,9 +33,9 @@ const sessionTypes = [
 ];
 
 const STUDIO_INFO = {
-  "Studio A - Resonance Sinhgad Road": { size: "Small", price: 600 },
-  "Studio B - Resonance Sinhgad Road": { size: "Medium", price: 800 },
-  "Studio C - Resonance Sinhgad Road": { size: "Large", price: 1000 },
+  "Studio A - Resonance Sinhgad Road": { size: "Small", price: 600, color: "bg-blue-500" },
+  "Studio B - Resonance Sinhgad Road": { size: "Medium", price: 800, color: "bg-amber-700" },
+  "Studio C - Resonance Sinhgad Road": { size: "Large", price: 1000, color: "bg-green-500" },
 };
 
 const STATUS_COLORS = {
@@ -62,7 +61,7 @@ export default function BookingNew() {
   const [bookingSummary, setBookingSummary] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ✅ My Bookings state
+  // My Bookings state
   const [myBookingsPhone, setMyBookingsPhone] = useState("");
   const [myBookings, setMyBookings] = useState([]);
   const [loadingMyBookings, setLoadingMyBookings] = useState(false);
@@ -84,8 +83,8 @@ export default function BookingNew() {
       startTime: "",
       endTime: "",
       specialRequirements: "",
-      phone: "", // ✅ NEW
-      name: ""   // ✅ NEW (optional)
+      phone: "",
+      name: ""
     },
   });
 
@@ -163,24 +162,11 @@ export default function BookingNew() {
     setCalendarDate((prev) => addDays(prev, 3));
   };
 
-  // Handle calendar date click
-  const handleCalendarDateClick = (clickedDate) => {
-    const dateStr = format(clickedDate, 'yyyy-MM-dd');
-    setValue('date', dateStr);
-    
-    setTimeout(() => {
-      const formElement = document.querySelector('form');
-      if (formElement) {
-        formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 100);
-    
-    toast.success(`Date selected: ${format(clickedDate, 'MMM dd, yyyy')}`);
-  };
-
-  // Get calendar slot color
-  const getCalendarSlotColor = (studioId, date, time) => {
-    if (!timetableData?.bookings) return "bg-green-500 text-white";
+  // ✅ NEW - Get calendar slot color based on studio and booking
+  const getCalendarSlotColor = (studioId, studioName, date, time) => {
+    if (!timetableData?.bookings) {
+      return "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600";
+    }
 
     const currentHour = parseInt(time.split(":")[0]);
     const dateStr = format(date, "yyyy-MM-dd");
@@ -193,10 +179,12 @@ export default function BookingNew() {
     });
 
     if (booking) {
-      return "bg-gray-400 text-white";
+      // Booked - use studio color
+      return `${STUDIO_INFO[studioName]?.color || 'bg-gray-500'} text-white`;
     }
 
-    return "bg-green-500 text-white";
+    // Available - white/empty
+    return "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600";
   };
 
   // Studio recommendations
@@ -295,9 +283,9 @@ export default function BookingNew() {
   }, [startTime, bookedSlots, endTime, setValue]);
 
   const formatTime = (hour) => {
-    if (hour < 12) return `${hour}:00 AM`;
-    if (hour === 12) return "12:00 PM";
-    return `${hour - 12}:00 PM`;
+    if (hour < 12) return `${hour} AM`;
+    if (hour === 12) return "12 N";
+    return `${hour - 12} PM`;
   };
 
   // Calculate summary
@@ -355,8 +343,8 @@ export default function BookingNew() {
           participants: parseInt(watchAll.groupSize.split("-")[1] || watchAll.groupSize.split("-")[0]),
           specialRequirements: watchAll.specialRequirements || "",
         },
-        phone: watchAll.phone,  // ✅ NEW
-        name: watchAll.name || null  // ✅ NEW (optional)
+        phone: watchAll.phone,
+        name: watchAll.name || null
       };
 
       await api.post("/booking", bookingData);
@@ -369,7 +357,6 @@ export default function BookingNew() {
       setAvailableEndTimes([]);
       fetchTimetable();
 
-      // ✅ Auto-load their bookings
       if (watchAll.phone) {
         setMyBookingsPhone(watchAll.phone);
         setTimeout(() => fetchMyBookings(watchAll.phone), 1000);
@@ -382,7 +369,7 @@ export default function BookingNew() {
     }
   };
 
-  // ✅ Fetch bookings by phone
+  // Fetch bookings by phone
   const fetchMyBookings = async (phone) => {
     if (!phone || phone.length !== 10) {
       toast.error("Please enter a valid 10-digit phone number");
@@ -409,7 +396,7 @@ export default function BookingNew() {
     }
   };
 
-  // ✅ Cancel booking
+  // Cancel booking
   const handleCancelBooking = async (bookingId) => {
     if (!window.confirm("Are you sure you want to cancel this booking?")) {
       return;
@@ -421,8 +408,8 @@ export default function BookingNew() {
       });
       
       toast.success("Booking cancelled successfully");
-      fetchMyBookings(myBookingsPhone); // Refresh list
-      fetchTimetable(); // Refresh calendar
+      fetchMyBookings(myBookingsPhone);
+      fetchTimetable();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to cancel booking");
     }
@@ -438,11 +425,17 @@ export default function BookingNew() {
 
   const selectedSessionType = sessionTypes.find((t) => t.value === sessionType);
 
+  // Generate time slots from 8 AM to 10 PM
+  const timeSlots = [];
+  for (let hour = 8; hour < 22; hour++) {
+    timeSlots.push(`${hour.toString().padStart(2, "0")}:00`);
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 pt-20 pb-16 px-4">
       <div className="max-w-7xl mx-auto">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2 mt-5">
             🎵 Resonance - Sinhgad Road
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-400">Book Your Perfect Studio Session</p>
@@ -456,31 +449,62 @@ export default function BookingNew() {
           {!showConfirmation ? (
             <motion.div key="booking-form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
               
-              {/* CALENDAR */}
+              {/* ✅ NEW CALENDAR LAYOUT */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-3 sm:p-4 md:p-6 border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between mb-4">
+                
+                {/* Header with Date Picker */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                   <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                     <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                     <span>Studio Availability</span>
                   </h2>
-                  <div className="flex items-center gap-2">
-                    <button onClick={goToPrevious} className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                      <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
-                    <button onClick={goToNext} className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                      <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
+                  
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    {/* Date Picker */}
+                    <div className="relative flex-1 sm:flex-initial">
+                      <input
+                        type="date"
+                        value={format(calendarDate, "yyyy-MM-dd")}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setCalendarDate(new Date(e.target.value));
+                          }
+                        }}
+                        min={format(new Date(), "yyyy-MM-dd")}
+                        max={maxDateStr}
+                        className="px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto"
+                      />
+                    </div>
+
+                    {/* Navigation Buttons */}
+                    <div className="flex items-center gap-2">
+                      <button onClick={goToPrevious} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button onClick={goToNext} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 sm:gap-3 mb-4 text-xs sm:text-sm">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded"></div>
-                    <span>Available</span>
+                {/* Legend */}
+                <div className="flex flex-wrap gap-3 mb-4 text-xs sm:text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                    <span>Studio A</span>
                   </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="w-3 h-3 sm:w-4 sm:h-4 bg-gray-400 rounded"></div>
-                    <span>Booked</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-amber-700 rounded"></div>
+                    <span>Studio B</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-500 rounded"></div>
+                    <span>Studio C</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-white border border-gray-300 rounded"></div>
+                    <span>Available</span>
                   </div>
                 </div>
 
@@ -490,61 +514,84 @@ export default function BookingNew() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-                    <table className="w-full border-collapse text-[10px] xs:text-xs sm:text-sm">
+                    <table className="w-full border-collapse text-xs sm:text-sm min-w-[800px]">
                       <thead>
+                        {/* Date Row */}
                         <tr>
-                          <th className="border border-gray-300 dark:border-gray-600 p-1.5 sm:p-2 bg-gray-100 dark:bg-gray-700 sticky left-0 z-20 min-w-[80px] sm:min-w-[120px]">
-                            <div className="font-semibold text-left">Studio</div>
+                          <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[100px]">
+                            <div className="font-bold">DATE</div>
                           </th>
                           {calendarDates.map((date, idx) => (
                             <th
                               key={idx}
-                              onClick={() => handleCalendarDateClick(date)}
-                              className="border border-gray-300 dark:border-gray-600 p-1.5 sm:p-2 bg-gray-100 dark:bg-gray-700 text-center min-w-[100px] sm:min-w-[150px] cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
-                              title="Click to select this date"
+                              colSpan={3}
+                              className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 text-center"
                             >
-                              <div className="font-semibold">{format(date, "EEE")}</div>
-                              <div className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">{format(date, "MMM dd")}</div>
+                              <div className="font-bold">{format(date, "dd")}</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">{format(date, "MMM")}</div>
                             </th>
+                          ))}
+                        </tr>
+
+                        {/* Studio Row */}
+                        <tr>
+                          <th className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700">
+                            <div className="font-bold">TIME/STUDIO</div>
+                          </th>
+                          {calendarDates.map((date, dateIdx) => (
+                            <>
+                              <th key={`${dateIdx}-A`} className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
+                                <div className="font-bold">A</div>
+                              </th>
+                              <th key={`${dateIdx}-B`} className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
+                                <div className="font-bold">B</div>
+                              </th>
+                              <th key={`${dateIdx}-C`} className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-100 dark:bg-gray-700 min-w-[80px]">
+                                <div className="font-bold">C</div>
+                              </th>
+                            </>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {timetableData?.studios?.map((studio) => (
-                          <tr key={studio.id}>
-                            <td className="border border-gray-300 dark:border-gray-600 p-1.5 sm:p-2 bg-gray-50 dark:bg-gray-800 sticky left-0 z-10">
-                              <div className="font-medium text-left">{studio.name}</div>
-                              <div className="text-[9px] sm:text-xs text-gray-500 dark:text-gray-400">{STUDIO_INFO[studio.name]?.size}</div>
-                            </td>
-                            {calendarDates.map((date, dateIdx) => (
-                              <td key={dateIdx} className="border border-gray-300 dark:border-gray-600 p-0.5 sm:p-1">
-                                <div className="flex flex-col gap-0.5">
-                                  {timetableData?.timeSlots?.slice(0, 14).map((time, timeIdx) => {
-                                    const colorClass = getCalendarSlotColor(studio.id, date, time);
-                                    const hour = parseInt(time.split(":")[0]);
-                                    return (
-                                      <div
-                                        key={timeIdx}
-                                        className={`flex items-center justify-center h-5 sm:h-6 rounded text-[9px] sm:text-xs font-medium ${colorClass}`}
-                                        title={`${studio.name} - ${formatTime(hour)}`}
-                                      >
-                                        <span className="hidden sm:inline">{formatTime(hour)}</span>
-                                        <span className="sm:hidden">{hour}</span>
-                                      </div>
-                                    );
-                                  })}
+                        {timeSlots.map((time, timeIdx) => {
+                          const hour = parseInt(time.split(":")[0]);
+                          return (
+                            <tr key={timeIdx}>
+                              {/* Time Column */}
+                              <td className="border border-gray-300 dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800 font-medium">
+                                <div className="flex items-center justify-center">
+                                  <span className="text-xs">{hour}</span>
+                                  <span className="ml-1 text-xs">{formatTime(hour)}</span>
                                 </div>
                               </td>
-                            ))}
-                          </tr>
-                        ))}
+
+                              {/* Studio Columns for each date */}
+                              {calendarDates.map((date, dateIdx) => (
+                                <>
+                                  {timetableData?.studios?.map((studio, studioIdx) => {
+                                    const colorClass = getCalendarSlotColor(studio.id, studio.name, date, time);
+                                    return (
+                                      <td
+                                        key={`${dateIdx}-${studioIdx}`}
+                                        className={`border border-gray-300 dark:border-gray-600 p-1 ${colorClass}`}
+                                      >
+                                        <div className="h-8"></div>
+                                      </td>
+                                    );
+                                  })}
+                                </>
+                              ))}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 )}
               </motion.div>
 
-              {/* FORM */}
+              {/* FORM - Keep existing form as is */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border border-gray-200 dark:border-gray-700">
                 <h2 className="text-2xl font-bold text-center text-blue-600 dark:text-blue-400 mb-6">📝 Booking Request Form</h2>
 
@@ -587,7 +634,7 @@ export default function BookingNew() {
                       type="text"
                       {...register("name")}
                       placeholder="John Doe"
-                      autoComplete="tel"
+                      autoComplete="name"
                       className="w-full px-4 py-2.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -717,24 +764,7 @@ export default function BookingNew() {
                           }
                         }}
                         className="w-full px-4 py-2.5 pr-10 text-base bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer"
-                        style={{
-                          colorScheme: 'light',
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'textfield'
-                        }}
-                        placeholder="Select a date"
                         disabled={!studioId}
-                        onClick={(e) => {
-                          if (!e.target.showPicker) {
-                            e.target.focus();
-                          } else {
-                            try {
-                              e.target.showPicker();
-                            } catch (error) {
-                              console.log('Picker not supported, using default');
-                            }
-                          }
-                        }}
                       />
                       <div 
                         className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -764,10 +794,6 @@ export default function BookingNew() {
                         {format(new Date(date), "EEEE, MMMM dd, yyyy")}
                       </p>
                     )}
-                    
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      📅 Click to open calendar picker (bookings from tomorrow onwards)
-                    </p>
                   </div>
 
                   {/* Start Time */}
@@ -827,7 +853,7 @@ export default function BookingNew() {
                 </form>
               </motion.div>
 
-              {/* ✅ MY BOOKINGS SECTION */}
+              {/* MY BOOKINGS SECTION - Keep as is */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }} 
@@ -864,7 +890,6 @@ export default function BookingNew() {
                   </Button>
                 </div>
 
-                {/* Bookings List */}
                 {showMyBookings && (
                   <div className="space-y-4">
                     {myBookings.length === 0 ? (
@@ -937,7 +962,6 @@ export default function BookingNew() {
                 <div className="space-y-4 mb-6">
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-700 rounded-lg p-4 space-y-3">
                     
-                    {/* Phone & Name */}
                     <div className="flex justify-between items-start border-b pb-2">
                       <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Contact:</span>
                       <span className="text-sm font-semibold text-gray-900 dark:text-white text-right">
